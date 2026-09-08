@@ -5,17 +5,19 @@ import { drawChart, exportCanvasPng } from './renderCanvas';
 import { startPlayback, type PlaybackHandle } from './audio';
 import { exportMidi } from './midi';
 import { runAcceptanceTests } from './acceptance';
+import { APP_VERSION, ENGINE_LABEL } from './version';
 
 const KEYS: Params['key'][] = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
 
 const INITIAL: Params = {
-  key:'F', type:'blues', preset:'bebop', choruses:1, bpm:142,
-  groove:'swing', swing:0.62, strum:true, strumMs:22,
-  instrument:'piano', complexity:'extended', color:68, comping:'sparse', seed:1701,
+  key:'Bb', type:'rhythm', standardForm:true, preset:'classic', choruses:1, bpm:136,
+  groove:'swing', swing:0.62, strum:true, strumMs:18,
+  instrument:'piano', complexity:'extended', color:56, comping:'sparse', metronome:true, seed:1701,
 };
 
 type StatusKind = 'ready'|'working'|'success'|'error';
 type LogEntry = { time:string; message:string };
+type ProgressionChoice = 'standard'|Params['type'];
 
 function newSeed(): number {
   const a = new Uint32Array(1);
@@ -44,9 +46,19 @@ export default function App() {
 
   const chart = useMemo(()=>buildChart(params),[params]);
   const splitBars = useMemo(()=>chart.bars.filter(b=>b.events.length>1).length,[chart]);
+  const firstChorusCenters = useMemo(()=>chart.tonalCenters?.filter(c=>c.chorus===0) ?? [],[chart]);
+  const progressionChoice: ProgressionChoice = params.standardForm ? 'standard' : params.type;
+  const structuralForm = params.standardForm
+    ? (chart.variantNames[0]?.startsWith('ABAC') ? 'ABAC' : 'AABA')
+    : params.preset==='bebop' ? 'Bebop' : 'Classic';
 
   const log = (message:string) => setLogs(l=>[{time:new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}),message},...l].slice(0,30));
   const update = <K extends keyof Params>(key:K,value:Params[K]) => setParams(p=>({...p,[key]:value}));
+  const selectProgression = (value:ProgressionChoice) => {
+    playbackRef.current?.stop();
+    if(value==='standard') setParams(p=>({...p,standardForm:true}));
+    else setParams(p=>({...p,standardForm:false,type:value}));
+  };
 
   useEffect(()=>{
     const canvas = canvasRef.current;
@@ -63,21 +75,21 @@ export default function App() {
   const generate = () => {
     playbackRef.current?.stop();
     const seed = newSeed();
-    setStatus({kind:'working',text:'Generating a new harmonic path…'});
+    setStatus({kind:'working',text:'Planning form, tonal centers and phrases…'});
     setParams(p=>({...p,seed}));
     requestAnimationFrame(()=>{
-      setStatus({kind:'success',text:'New progression generated'});
-      log(`Generated ${formName(params.type)} variation · seed ${seed}`);
+      setStatus({kind:'success',text:'New harmonic route generated'});
+      log(`Generated ${formName(params.type,params.standardForm)} · seed ${seed}`);
     });
   };
 
   const play = async () => {
     try {
       playbackRef.current?.stop();
-      setStatus({kind:'working',text:'Starting audio…'});
+      setStatus({kind:'working',text:'Starting piano engine…'});
       playbackRef.current = await startPlayback(params,chart,setActiveBar);
-      setStatus({kind:'success',text:'Playing'});
-      log(`Playback started at ${params.bpm} BPM`);
+      setStatus({kind:'success',text:params.metronome?'Playing with metronome':'Playing'});
+      log(`Playback started at ${params.bpm} BPM · ${params.metronome?'click on':'click off'}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Playback failed.';
       setStatus({kind:'error',text:message}); log(`Playback error: ${message}`);
@@ -105,12 +117,15 @@ export default function App() {
   return <div className="app-shell">
     <header className="topbar">
       <div className="brand"><div className="brand-mark">J</div><div><strong>Jazz Progression Studio</strong><span>functional harmony · voiced for musicians</span></div></div>
-      <div className={`status-pill ${status.kind}`}><i />{status.text}</div>
+      <div className="topbar-right">
+        <div className="version-badge"><b>v{APP_VERSION}</b><span>{ENGINE_LABEL}</span></div>
+        <div className={`status-pill ${status.kind}`}><i />{status.text}</div>
+      </div>
     </header>
 
     <main className="workspace">
       <aside className="control-panel">
-        <div className="panel-head"><span className="eyebrow">HARMONY ENGINE</span><h1>Build a progression</h1><p>Generate coherent jazz forms, then regenerate for a different but still functional path.</p></div>
+        <div className="panel-head"><span className="eyebrow">CORPUS FORM ENGINE</span><h1>Build a progression</h1><p>Generate the form and tonal route first, then realize phrase-level jazz harmony into playable voicings.</p></div>
 
         <section className="control-section">
           <div className="label-row"><span>Concert key</span><small>{params.key}</small></div>
@@ -118,15 +133,16 @@ export default function App() {
         </section>
 
         <section className="control-section">
-          <label className="field"><span>Progression type</span><select value={params.type} onChange={e=>update('type',e.target.value as Params['type'])}>
+          <label className="field"><span>Progression type</span><select value={progressionChoice} onChange={e=>selectProgression(e.target.value as ProgressionChoice)}>
+            <option value="standard">Jazz Standard · 32 bars</option>
             <option value="iivi">ii–V–I · major</option><option value="iimino">iiø–V–i · minor</option><option value="blues">12-Bar Jazz Blues</option><option value="rhythm">Rhythm Changes · AABA</option>
           </select></label>
-          <Segmented label="Preset" value={params.preset} onChange={v=>update('preset',v)} items={[{value:'classic',label:'Classic'},{value:'bebop',label:'Bebop / Parker'}]} />
-          <Segmented label="Complexity" value={params.complexity} onChange={v=>update('complexity',v)} items={[{value:'triads',label:'Triads'},{value:'sevenths',label:'7ths'},{value:'extended',label:'Extended'}]} />
+          <Segmented label="Language" value={params.preset} onChange={v=>update('preset',v)} items={[{value:'classic',label:'Classic'},{value:'bebop',label:'Bebop'}]} />
+          <Segmented label="Chord detail" value={params.complexity} onChange={v=>update('complexity',v)} items={[{value:'triads',label:'Triads'},{value:'sevenths',label:'7ths'},{value:'extended',label:'Extended'}]} />
         </section>
 
         <section className="control-section">
-          <div className="range-field"><div className="label-row"><span>Harmonic color</span><small>{params.color}%</small></div><input aria-label="Harmonic color" type="range" min="0" max="100" value={params.color} onChange={e=>update('color',Number(e.target.value))}/><p className="hint">Higher values favor tonicizations, altered dominants, passing diminished chords and tritone subs.</p></div>
+          <div className="range-field"><div className="label-row"><span>Harmonic distance</span><small>{params.color}%</small></div><input aria-label="Harmonic distance" type="range" min="0" max="100" value={params.color} onChange={e=>update('color',Number(e.target.value))}/><p className="hint">Controls the probability of tonicizations, modal interchange, chromatic centers, diminished connectors and tritone dominants.</p></div>
           <div className="two-col">
             <label className="field"><span>Choruses</span><input type="number" min="1" max="10" value={params.choruses} onChange={e=>update('choruses',Math.max(1,Math.min(10,Number(e.target.value)||1)))}/></label>
             <label className="field"><span>Tempo</span><div className="input-suffix"><input type="number" min="40" max="300" value={params.bpm} onChange={e=>update('bpm',Math.max(40,Math.min(300,Number(e.target.value)||140)))}/><b>BPM</b></div></label>
@@ -139,22 +155,30 @@ export default function App() {
           <Segmented label="Comping" value={params.comping} onChange={v=>update('comping',v)} items={[{value:'sustained',label:'Sustain'},{value:'sparse',label:'Sparse'},{value:'bebop',label:'Bebop'}]} />
           <div className="two-col">
             <label className="field"><span>Instrument</span><select value={params.instrument} onChange={e=>update('instrument',e.target.value as Params['instrument'])}><option value="piano">Piano</option><option value="guitar">Guitar</option><option value="bass">Bass</option></select></label>
+            <label className="switch-field"><span><b>Metronome</b><small>{params.metronome?'Quarter-note click':'Off'}</small></span><input type="checkbox" checked={params.metronome} onChange={e=>update('metronome',e.target.checked)}/><i /></label>
+          </div>
+          <div className="two-col">
             <label className="switch-field"><span><b>Strum</b><small>{params.strum?`${params.strumMs} ms`:'Off'}</small></span><input type="checkbox" checked={params.strum} onChange={e=>update('strum',e.target.checked)}/><i /></label>
+            <div className="audio-note"><b>PIANO</b><small>Layered hammer + body + room</small></div>
           </div>
           {params.strum&&<div className="range-field compact"><input aria-label="Strum milliseconds" type="range" min="10" max="60" value={params.strumMs} onChange={e=>update('strumMs',Number(e.target.value))}/></div>}
         </section>
 
-        <button type="button" className="generate-btn" onClick={generate}><span>Generate variation</span><kbd>↻</kbd></button>
+        <button type="button" className="generate-btn" onClick={generate}><span>Generate new form</span><kbd>↻</kbd></button>
       </aside>
 
       <section className="content-panel">
         <div className="hero-row">
-          <div><span className="eyebrow">CURRENT FORM</span><h2>{params.key} {formName(params.type)}</h2><p>{chart.variantNames.join(' · ')}</p></div>
+          <div><span className="eyebrow">CURRENT FORM · ENGINE v{APP_VERSION}</span><h2>{params.key} {formName(params.type,params.standardForm)}</h2><p>{chart.variantNames.join(' · ')}</p></div>
           <div className="hero-actions"><button className="icon-btn primary" onClick={play} type="button">▶ <span>Play</span></button><button className="icon-btn" onClick={stop} type="button">■ <span>Stop</span></button></div>
         </div>
 
+        {firstChorusCenters.length>0&&<div className="route-strip" aria-label="Tonal-center plan">
+          {firstChorusCenters.map((route,i)=><div key={`${route.section}-${i}`}><b>{route.section}</b><span>{route.centers.join(' → ')}</span></div>)}
+        </div>}
+
         <div className="metric-row">
-          <div><span>BARS</span><strong>{chart.bars.length}</strong></div><div><span>SPLIT BARS</span><strong>{splitBars}</strong></div><div><span>STYLE</span><strong>{params.preset==='bebop'?'Bebop':'Classic'}</strong></div><div><span>VOICE LEADING</span><strong>3 ↔ 7</strong></div>
+          <div><span>BARS</span><strong>{chart.bars.length}</strong></div><div><span>SPLIT BARS</span><strong>{splitBars}</strong></div><div><span>FORM</span><strong>{structuralForm}</strong></div><div><span>VOICE LEADING</span><strong>3 ↔ 7</strong></div>
         </div>
 
         <div className="chart-card"><canvas ref={canvasRef} aria-label="Jazz chord chart" /></div>
@@ -164,10 +188,10 @@ export default function App() {
           <button type="button" className="tests-toggle" onClick={()=>setShowTests(v=>!v)}><span className={passed===tests.length?'test-ok':'test-bad'}>{passed}/{tests.length}</span> acceptance tests {showTests?'▲':'▼'}</button>
         </div>
 
-        {showTests&&<div className="tests-panel"><div className="tests-head"><div><b>Built-in acceptance harness</b><span>Source-of-truth checks from the requirements</span></div><button type="button" onClick={rerunTests}>Run again</button></div><div className="tests-grid">{tests.map(t=><div key={t.name} className={t.pass?'pass':'fail'}><i>{t.pass?'✓':'×'}</i><span><b>{t.name}</b><small>{t.detail}</small></span></div>)}</div></div>}
+        {showTests&&<div className="tests-panel"><div className="tests-head"><div><b>Built-in acceptance harness</b><span>Original exact forms plus structural engine checks</span></div><button type="button" onClick={rerunTests}>Run again</button></div><div className="tests-grid">{tests.map(t=><div key={t.name} className={t.pass?'pass':'fail'}><i>{t.pass?'✓':'×'}</i><span><b>{t.name}</b><small>{t.detail}</small></span></div>)}</div></div>}
 
         <div className="lower-grid">
-          <div className="info-card"><span className="eyebrow">WHY THIS SOUNDS LIKE JAZZ</span><h3>Function first, color second.</h3><p>The generator preserves cadential targets, then introduces secondary dominants, diminished connectors and substitutions at places where they resolve. Extended voicings prioritize guide tones and choose the closest available shape from chord to chord.</p></div>
+          <div className="info-card"><span className="eyebrow">WHY v3 IS DIFFERENT</span><h3>Form first. Destination second. Chords last.</h3><p>The 32-bar engine chooses AABA or ABAC, gives every section a tonal-center route, then selects complete four- and eight-bar phrase families using corpus-informed priors. A sections are related without being copied; bridges deliberately leave the home key; the final section returns with a stronger cadence. Chord extensions and piano voicing happen only after that structure exists.</p></div>
           <div className="log-card"><div className="log-head"><b>Activity</b><span>{logs.length} events</span></div><div className="log-list">{logs.length?logs.map((l,i)=><div key={i}><time>{l.time}</time><span>{l.message}</span></div>):<p>No events yet. Generate, play or export something.</p>}</div></div>
         </div>
       </section>
