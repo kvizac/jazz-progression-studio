@@ -1,6 +1,6 @@
 export type KeyName = 'C'|'Db'|'D'|'Eb'|'E'|'F'|'Gb'|'G'|'Ab'|'A'|'Bb'|'B';
 export type ProgressionType = 'iivi'|'iimino'|'blues'|'rhythm';
-export type Preset = 'classic'|'bebop';
+export type Preset = 'classic'|'bebop'|'modern'|'neosoul'|'rnb';
 export type Groove = 'straight'|'swing';
 export type Instrument = 'piano'|'guitar'|'bass';
 export type Complexity = 'triads'|'sevenths'|'extended';
@@ -24,6 +24,10 @@ export type Params = {
   color: number; // 0..100, harmonic distance / reharmonization amount
   comping: CompingStyle;
   metronome: boolean;
+  /** Humanized microtiming, velocity, duration and dynamic strum. Defaults on when omitted. */
+  humanize?: boolean;
+  /** 0..100. Controls the magnitude of bounded performance variation. */
+  humanizeAmount?: number;
   seed: number;
 };
 
