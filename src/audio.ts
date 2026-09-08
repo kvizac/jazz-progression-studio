@@ -92,7 +92,7 @@ export async function startPlayback(params:Params,chart:GeneratedChart,onBar:OnB
           const ordered=event.midi.map(midiToName);
           const notes=perf.direction==='down'?[...ordered].reverse():ordered;
           const requested=params.strum?params.strumMs/1000:0;
-          const pianoCap=params.preset==='neosoul'||params.preset==='rnb'?.018:.014;
+          const pianoCap=(params.preset==='neosoul'||params.preset==='rnb')?.018:.014;
           const strum=params.instrument==='piano'?Math.min(requested*perf.strumScale,pianoCap):requested*perf.strumScale;
           const triggerTime=time+perf.timingMs/1000;
           const baseVelocity=params.instrument==='piano'?.58:.70;
