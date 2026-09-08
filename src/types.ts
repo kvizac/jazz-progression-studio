@@ -1,5 +1,5 @@
 export type KeyName = 'C'|'Db'|'D'|'Eb'|'E'|'F'|'Gb'|'G'|'Ab'|'A'|'Bb'|'B';
-export type ProgressionType = 'iivi'|'iimino'|'blues'|'rhythm';
+export type ProgressionType = 'standard'|'iivi'|'iimino'|'blues'|'rhythm';
 export type Preset = 'classic'|'bebop';
 export type Groove = 'straight'|'swing';
 export type Instrument = 'piano'|'guitar'|'bass';
@@ -21,6 +21,7 @@ export type Params = {
   complexity: Complexity;
   color: number; // 0..100, harmonic distance / reharmonization amount
   comping: CompingStyle;
+  metronome: boolean;
   seed: number;
 };
 
