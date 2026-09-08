@@ -57,7 +57,7 @@ export function performanceVariation(params:Pick<Params,'seed'|'preset'|'style'|
   };
   const p=profile[style];const r1=unit(params.seed,barIndex,beat,20+hitIndex*5);const r2=unit(params.seed,barIndex,beat,21+hitIndex*5);const r3=unit(params.seed,barIndex,beat,22+hitIndex*5);const r4=unit(params.seed,barIndex,beat,23+hitIndex*5);const r5=unit(params.seed,barIndex,beat,24+hitIndex*5);
   const downbeat=Math.abs(beat)<.01;const backbeat=Math.abs(beat-1)<.01||Math.abs(beat-3)<.01;const offbeat=Math.abs(beat-Math.round(beat))>.01;
-  let accent=downbeat?.07:0;if(style==='rnb'&&backbeat)accent+=.08;if(style==='neosoul'&&offbeat)accent+=.055;if(style==='modern'&&offbeat)accent+=.035;
+  let accent=downbeat ? .07 : 0;if(style==='rnb'&&backbeat)accent+=.08;if(style==='neosoul'&&offbeat)accent+=.055;if(style==='modern'&&offbeat)accent+=.035;
   const timing=Math.max(0,(p.late+(r1-.5)*p.timing)*amount);
   return{timingMs:Math.min(p.timing,timing),velocityScale:Math.max(.76,Math.min(1.22,1+accent*amount+(r2-.5)*2*p.velocity*amount)),durationScale:Math.max(.82,Math.min(1.12,1+(r3-.5)*2*p.duration*amount)),strumScale:Math.max(.20,Math.min(1.35,1+(r4-.5)*2*p.strum*amount)),direction:r5>.62?'down':'up'};
 }
