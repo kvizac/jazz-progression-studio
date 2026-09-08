@@ -11,7 +11,7 @@ const KEYS: Params['key'][] = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb',
 
 const INITIAL: Params = {
   key:'Bb', type:'rhythm', standardForm:true, preset:'classic', choruses:1, bpm:136,
-  groove:'swing', swing:0.62, strum:true, strumMs:18,
+  groove:'swing', swing:0.62, strum:false, strumMs:10,
   instrument:'piano', complexity:'extended', color:56, comping:'sparse', metronome:true, seed:1701,
 };
 
@@ -75,7 +75,7 @@ export default function App() {
   const generate = () => {
     playbackRef.current?.stop();
     const seed = newSeed();
-    setStatus({kind:'working',text:'Planning form, tonal centers and phrases…'});
+    setStatus({kind:'working',text:'Planning form, tonal centers and complete phrases…'});
     setParams(p=>({...p,seed}));
     requestAnimationFrame(()=>{
       setStatus({kind:'success',text:'New harmonic route generated'});
@@ -86,7 +86,7 @@ export default function App() {
   const play = async () => {
     try {
       playbackRef.current?.stop();
-      setStatus({kind:'working',text:'Starting piano engine…'});
+      setStatus({kind:'working',text:params.instrument==='piano'?'Loading Yamaha C5 piano samples…':'Starting audio…'});
       playbackRef.current = await startPlayback(params,chart,setActiveBar);
       setStatus({kind:'success',text:params.metronome?'Playing with metronome':'Playing'});
       log(`Playback started at ${params.bpm} BPM · ${params.metronome?'click on':'click off'}`);
@@ -116,7 +116,7 @@ export default function App() {
 
   return <div className="app-shell">
     <header className="topbar">
-      <div className="brand"><div className="brand-mark">J</div><div><strong>Jazz Progression Studio</strong><span>functional harmony · voiced for musicians</span></div></div>
+      <div className="brand"><div className="brand-mark">J</div><div><strong>Jazz Progression Studio</strong><span>form grammar · playable voicings · sampled piano</span></div></div>
       <div className="topbar-right">
         <div className="version-badge"><b>v{APP_VERSION}</b><span>{ENGINE_LABEL}</span></div>
         <div className={`status-pill ${status.kind}`}><i />{status.text}</div>
@@ -125,7 +125,7 @@ export default function App() {
 
     <main className="workspace">
       <aside className="control-panel">
-        <div className="panel-head"><span className="eyebrow">CORPUS FORM ENGINE</span><h1>Build a progression</h1><p>Generate the form and tonal route first, then realize phrase-level jazz harmony into playable voicings.</p></div>
+        <div className="panel-head"><span className="eyebrow">VALIDATED STANDARD ENGINE</span><h1>Build a progression</h1><p>Choose the form and tonal route first, realize complete eight-bar harmonic sentences, then voice them as playable jazz-piano chords.</p></div>
 
         <section className="control-section">
           <div className="label-row"><span>Concert key</span><small>{params.key}</small></div>
@@ -142,7 +142,7 @@ export default function App() {
         </section>
 
         <section className="control-section">
-          <div className="range-field"><div className="label-row"><span>Harmonic distance</span><small>{params.color}%</small></div><input aria-label="Harmonic distance" type="range" min="0" max="100" value={params.color} onChange={e=>update('color',Number(e.target.value))}/><p className="hint">Controls the probability of tonicizations, modal interchange, chromatic centers, diminished connectors and tritone dominants.</p></div>
+          <div className="range-field"><div className="label-row"><span>Harmonic distance</span><small>{params.color}%</small></div><input aria-label="Harmonic distance" type="range" min="0" max="100" value={params.color} onChange={e=>update('color',Number(e.target.value))}/><p className="hint">Controls temporary key centers and chromatic routes. It no longer just adds altered dominants to an otherwise identical progression.</p></div>
           <div className="two-col">
             <label className="field"><span>Choruses</span><input type="number" min="1" max="10" value={params.choruses} onChange={e=>update('choruses',Math.max(1,Math.min(10,Number(e.target.value)||1)))}/></label>
             <label className="field"><span>Tempo</span><div className="input-suffix"><input type="number" min="40" max="300" value={params.bpm} onChange={e=>update('bpm',Math.max(40,Math.min(300,Number(e.target.value)||140)))}/><b>BPM</b></div></label>
@@ -159,9 +159,9 @@ export default function App() {
           </div>
           <div className="two-col">
             <label className="switch-field"><span><b>Strum</b><small>{params.strum?`${params.strumMs} ms`:'Off'}</small></span><input type="checkbox" checked={params.strum} onChange={e=>update('strum',e.target.checked)}/><i /></label>
-            <div className="audio-note"><b>PIANO</b><small>Layered hammer + body + room</small></div>
+            <div className="audio-note"><b>REAL PIANO</b><small>Recorded Yamaha C5 · Salamander</small></div>
           </div>
-          {params.strum&&<div className="range-field compact"><input aria-label="Strum milliseconds" type="range" min="10" max="60" value={params.strumMs} onChange={e=>update('strumMs',Number(e.target.value))}/></div>}
+          {params.strum&&<div className="range-field compact"><input aria-label="Strum milliseconds" type="range" min="5" max={params.instrument==='piano'?20:60} value={Math.min(params.strumMs,params.instrument==='piano'?20:60)} onChange={e=>update('strumMs',Number(e.target.value))}/></div>}
         </section>
 
         <button type="button" className="generate-btn" onClick={generate}><span>Generate new form</span><kbd>↻</kbd></button>
@@ -188,10 +188,10 @@ export default function App() {
           <button type="button" className="tests-toggle" onClick={()=>setShowTests(v=>!v)}><span className={passed===tests.length?'test-ok':'test-bad'}>{passed}/{tests.length}</span> acceptance tests {showTests?'▲':'▼'}</button>
         </div>
 
-        {showTests&&<div className="tests-panel"><div className="tests-head"><div><b>Built-in acceptance harness</b><span>Original exact forms plus structural engine checks</span></div><button type="button" onClick={rerunTests}>Run again</button></div><div className="tests-grid">{tests.map(t=><div key={t.name} className={t.pass?'pass':'fail'}><i>{t.pass?'✓':'×'}</i><span><b>{t.name}</b><small>{t.detail}</small></span></div>)}</div></div>}
+        {showTests&&<div className="tests-panel"><div className="tests-head"><div><b>Built-in acceptance harness</b><span>Original forms plus structural checks; CI additionally validates 240 generated standards</span></div><button type="button" onClick={rerunTests}>Run again</button></div><div className="tests-grid">{tests.map(t=><div key={t.name} className={t.pass?'pass':'fail'}><i>{t.pass?'✓':'×'}</i><span><b>{t.name}</b><small>{t.detail}</small></span></div>)}</div></div>}
 
         <div className="lower-grid">
-          <div className="info-card"><span className="eyebrow">WHY v3 IS DIFFERENT</span><h3>Form first. Destination second. Chords last.</h3><p>The 32-bar engine chooses AABA or ABAC, gives every section a tonal-center route, then selects complete four- and eight-bar phrase families using corpus-informed priors. A sections are related without being copied; bridges deliberately leave the home key; the final section returns with a stronger cadence. Chord extensions and piano voicing happen only after that structure exists.</p></div>
+          <div className="info-card"><span className="eyebrow">WHY v4 IS DIFFERENT</span><h3>Complete phrases, playable voicings, anchored rhythm.</h3><p>A sections now come from complete eight-bar harmonic families with first, second and final endings, so valid fragments cannot be glued together at a bad harmonic boundary. Piano chords are forced to full guide-tone voicings instead of falling back to a single root. Every chord change is sounded exactly on its harmonic beat; syncopated comping can occur only after that anchor. The CI quality gate generates 240 standards across all 12 keys before deployment.</p></div>
           <div className="log-card"><div className="log-head"><b>Activity</b><span>{logs.length} events</span></div><div className="log-list">{logs.length?logs.map((l,i)=><div key={i}><time>{l.time}</time><span>{l.message}</span></div>):<p>No events yet. Generate, play or export something.</p>}</div></div>
         </div>
       </section>
