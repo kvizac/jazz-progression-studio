@@ -4,15 +4,16 @@ import type { ChorusPlan } from './harmonyModel';
 export const STANDARD_FORM_LENGTH=32;
 
 type Tag='cycle'|'tonicization'|'minor'|'diminished'|'backdoor'|'chromatic'|'tritone';
-type Phrase={
+type Phrase={id:string;family:string;bars:string[];centers:string[];target:string;weight:number;minColor?:number;maxColor?:number;classic?:number;bebop?:number;tags?:Tag[]};
+type AFamily={
   id:string;
   family:string;
-  bars:string[];
+  first:string[];
+  second:string[];
+  final:string[];
   centers:string[];
-  target:string;
   weight:number;
   minColor?:number;
-  maxColor?:number;
   classic?:number;
   bebop?:number;
   tags?:Tag[];
@@ -20,31 +21,41 @@ type Phrase={
 type SectionResult={bars:string[];centers:string[];phrases:Phrase[]};
 
 /**
- * v4 design rule: complexity comes primarily from TONAL DESTINATIONS, not from cramming
- * two altered chords into every bar. These phrase blocks deliberately resemble the density
- * of real fake-book standards: usually one harmony per bar, with two chords reserved for
- * cadences, tonicizations and turnarounds.
+ * Complete 8-bar A-section grammars. Each family has a first ending, second ending and
+ * final ending. This prevents two individually valid 4-bar fragments from being joined
+ * at a harmonically nonsensical boundary.
  */
-const A_OPENERS:Phrase[]=[
-  {id:'a-songbook-dim',family:'songbook diminished approach',target:'V',weight:34,bars:['IΔ9','#i°7','ii9','V13'],centers:['I','#i°','ii','V'],tags:['diminished','cycle']},
-  {id:'a-cycle-to-iv',family:'ii–V–I to IV',target:'IV',weight:32,bars:['ii9','V13','IΔ9','IVΔ9'],centers:['ii','V','I','IV'],tags:['cycle'],classic:1.15},
-  {id:'a-relative-minor',family:'relative-minor tonicization',target:'ii',weight:28,minColor:18,bars:['IΔ9','V7/vi','vi9','V7/ii'],centers:['I','vi','ii'],tags:['tonicization','minor','cycle']},
-  {id:'a-subdominant',family:'subdominant / diminished launch',target:'I',weight:24,minColor:24,bars:['IΔ9','I7','IVΔ9','#iv°7'],centers:['I','IV','#iv°','I'],tags:['tonicization','diminished']},
-  {id:'a-biii-side',family:'chromatic side-step tonicization',target:'ii',weight:11,minColor:62,bars:['IΔ9','ii7/bIII,V7/bIII','bIIIΔ9','V7/ii'],centers:['I','bIII','ii'],tags:['tonicization','chromatic'],bebop:1.25},
-];
-
-const A_CONTINUATIONS:Phrase[]=[
-  {id:'a-cont-cycle',family:'iii–VI–ii–V',target:'V',weight:38,bars:['iii7','VI7','ii9','V13'],centers:['iii','VI','ii','V'],tags:['cycle']},
-  {id:'a-cont-minor',family:'minor detour to ii–V',target:'V',weight:24,minColor:20,bars:['iiø7/vi','V7b9/vi','vi9,V7/ii','ii9,V13'],centers:['vi','ii','V'],tags:['minor','tonicization','cycle']},
-  {id:'a-cont-backdoor',family:'subdominant backdoor',target:'I',weight:23,minColor:28,bars:['IVΔ9','iv7','bVII7','IΔ9'],centers:['IV','iv','bVII','I'],tags:['backdoor'],classic:1.2},
-  {id:'a-cont-turn',family:'compact turnaround',target:'V',weight:30,bars:['I6/9','VI7','ii9,V13','I6/9,V7'],centers:['I','VI','ii','V','I','V'],tags:['cycle'],bebop:1.1},
-];
-
-const A_FINALS:Phrase[]=[
-  {id:'a-final-cycle',family:'resolved iii–VI–ii–V',target:'I',weight:38,bars:['iii7,VI7','ii9,V13','IΔ9','I6/9'],centers:['iii','VI','ii','V','I'],tags:['cycle']},
-  {id:'a-final-backdoor',family:'plagal / backdoor close',target:'I',weight:28,minColor:22,bars:['IVΔ9','iv7,bVII7','IΔ9','I6/9'],centers:['IV','iv','bVII','I'],tags:['backdoor'],classic:1.2},
-  {id:'a-final-minor',family:'relative-minor return',target:'I',weight:22,minColor:32,bars:['iiø7/vi,V7b9/vi','vi9','ii9,V7alt','I6/9'],centers:['vi','ii','V','I'],tags:['minor','tonicization','cycle']},
-  {id:'a-final-dim',family:'diminished turnaround close',target:'I',weight:18,minColor:34,bars:['IVΔ9','#iv°7','ii9,V13','I6/9'],centers:['IV','#iv°','ii','V','I'],tags:['diminished','cycle'],bebop:1.2},
+const A_FAMILIES:AFamily[]=[
+  {
+    id:'a-songbook-cycle',family:'songbook diminished cycle',weight:34,centers:['I','#i°','ii','V','iii','VI','ii','V'],tags:['diminished','cycle'],
+    first:['IΔ9','#i°7','ii9','V13','iii7','VI7','ii9','V13'],
+    second:['IΔ9','#i°7','ii9','V13','iii7','VI7','ii9,V13','I6/9,V7'],
+    final:['IΔ9','#i°7','ii9','V13','iii7,VI7','ii9,V13','IΔ9','I6/9'],
+  },
+  {
+    id:'a-relative-minor',family:'relative-minor route',weight:31,minColor:16,centers:['I','vi','ii','V','I','VI','ii','V'],tags:['minor','tonicization','cycle'],
+    first:['IΔ9','V7/vi','vi9','V7/ii','ii9','V13','I6/9,VI7','ii9,V13'],
+    second:['IΔ9','V7/vi','vi9','V7/ii','ii9','V13','IΔ9','V7'],
+    final:['IΔ9','V7/vi','vi9','V7/ii','ii9','V13','IΔ9','I6/9'],
+  },
+  {
+    id:'a-major-minor-cycle',family:'major/minor cycle',weight:29,minColor:18,centers:['ii','V','I','IV','vi','V/vi','iii','VI','ii','V'],tags:['cycle','minor','tonicization'],classic:1.12,
+    first:['ii9','V13','IΔ9','IVΔ9','iiø7/vi','V7b9/vi','vi9,V7/ii','ii9,V13'],
+    second:['ii9','V13','IΔ9','IVΔ9','iii7','VI7','ii9,V13','I6/9,V7'],
+    final:['ii9','V13','IΔ9','IVΔ9','iii7','VI7','ii9,V13','I6/9'],
+  },
+  {
+    id:'a-subdominant-backdoor',family:'subdominant / backdoor route',weight:27,minColor:24,centers:['I','IV','iv','bVII','iii','VI','ii','V','I'],tags:['tonicization','backdoor','cycle'],classic:1.15,
+    first:['IΔ9','I7','IVΔ9','iv7','iii7','VI7','ii9','V13'],
+    second:['IΔ9','I7','IVΔ9','iv7,bVII7','iii7','VI7','ii9,V13','I6/9,V7'],
+    final:['IΔ9','I7','IVΔ9','iv7,bVII7','iii7,VI7','ii9,V13','IΔ9','I6/9'],
+  },
+  {
+    id:'a-biii-side',family:'chromatic bIII side-step',weight:12,minColor:62,centers:['I','bIII','ii','V','I','VI','ii','V'],tags:['chromatic','tonicization','cycle'],bebop:1.25,
+    first:['IΔ9','ii7/bIII,V7/bIII','bIIIΔ9','V7/ii','ii9','V13','I6/9,VI7','ii9,V13'],
+    second:['IΔ9','ii7/bIII,V7/bIII','bIIIΔ9','V7/ii','ii9','V13','IΔ9','V7'],
+    final:['IΔ9','ii7/bIII,V7/bIII','bIIIΔ9','V7/ii','ii9','V13','IΔ9','I6/9'],
+  },
 ];
 
 const BRIDGES:Phrase[]=[
@@ -66,29 +77,44 @@ const C_SECTIONS:Phrase[]=[
 function hashSeed(seed:number,salt:number):number{let x=(seed^Math.imul(salt+1,0x9e3779b9))>>>0;x^=x<<13;x>>>=0;x^=x>>>17;x>>>=0;x^=x<<5;x>>>=0;return x>>>0;}
 function unit(seed:number,salt:number):number{return hashSeed(seed,salt)/0xffffffff;}
 function tagMultiplier(tags:Tag[]|undefined,color:number):number{const t=new Set(tags??[]);let m=1;if(t.has('cycle'))m*=1.15;if(t.has('tonicization'))m*=0.88+color/170;if(t.has('minor'))m*=0.85+color/190;if(t.has('diminished'))m*=0.75+color/210;if(t.has('backdoor'))m*=0.70+color/170;if(t.has('chromatic'))m*=0.45+color/110;if(t.has('tritone'))m*=0.10+color/120;return m;}
-function pick(pool:Phrase[],params:Params,salt:number,blocked=new Set<string>()):Phrase{const candidates=pool.filter(p=>(p.minColor===undefined||params.color>=p.minColor)&&(p.maxColor===undefined||params.color<=p.maxColor)&&!blocked.has(p.id));if(!candidates.length)throw new Error('No standard-form phrase candidates fit this harmonic distance.');const weighted=candidates.map(p=>({p,w:p.weight*(params.preset==='bebop'?(p.bebop??1):(p.classic??1))*tagMultiplier(p.tags,params.color)}));const total=weighted.reduce((s,x)=>s+x.w,0);let cursor=unit(params.seed,salt)*total;for(const x of weighted){cursor-=x.w;if(cursor<=0)return x.p;}return weighted[weighted.length-1].p;}
-function makeA(params:Params,salt:number,final:boolean,forcedOpener?:Phrase,blockedCloser=new Set<string>()):SectionResult{const opener=forcedOpener??pick(A_OPENERS,params,salt);const closer=pick(final?A_FINALS:A_CONTINUATIONS,params,salt+31,blockedCloser);return{bars:[...opener.bars,...closer.bars],centers:[...opener.centers,...closer.centers],phrases:[opener,closer]};}
-function addMetadata(chorus:number,section:string,base:number,result:SectionResult,intent:string,centers:TonalCenterPlan[],phrases:PhraseTrace[]):void{centers.push({chorus,section,centers:result.centers,mode:'major',intent});let cursor=base;for(const p of result.phrases){phrases.push({chorus,section,startBar:cursor,endBar:cursor+p.bars.length-1,family:p.family,target:p.target,templateId:p.id});cursor+=p.bars.length;}}
-function formForSeed(params:Params):'AABA'|'ABAC'{const aabaChance=params.preset==='classic'?0.64:0.56;return unit(params.seed,11)<aabaChance?'AABA':'ABAC';}
+function weightedPick<T extends {weight:number;minColor?:number;maxColor?:number;classic?:number;bebop?:number;tags?:Tag[]}>(pool:T[],params:Params,salt:number,blockedIds=new Set<string>()):T{
+  const candidates=pool.filter(p=>(p.minColor===undefined||params.color>=p.minColor)&&(p.maxColor===undefined||params.color<=p.maxColor)&&!blockedIds.has((p as T&{id:string}).id));
+  if(!candidates.length)throw new Error('No standard-form phrase candidates fit this harmonic distance.');
+  const weighted=candidates.map(p=>({p,w:p.weight*(params.preset==='bebop'?(p.bebop??1):(p.classic??1))*tagMultiplier(p.tags,params.color)}));
+  const total=weighted.reduce((s,x)=>s+x.w,0);let cursor=unit(params.seed,salt)*total;
+  for(const x of weighted){cursor-=x.w;if(cursor<=0)return x.p;}return weighted[weighted.length-1].p;
+}
+function asASection(family:AFamily,ending:'first'|'second'|'final'):SectionResult{
+  const bars=ending==='first'?family.first:ending==='second'?family.second:family.final;
+  const phrase:Phrase={id:`${family.id}-${ending}`,family:family.family,bars:[...bars],centers:[...family.centers],target:ending==='final'?'I':'V',weight:family.weight,tags:family.tags};
+  return{bars:[...bars],centers:[...family.centers],phrases:[phrase]};
+}
+function addMetadata(chorus:number,section:string,base:number,result:SectionResult,intent:string,centers:TonalCenterPlan[],phrases:PhraseTrace[]):void{
+  centers.push({chorus,section,centers:result.centers,mode:'major',intent});let cursor=base;
+  for(const p of result.phrases){phrases.push({chorus,section,startBar:cursor,endBar:cursor+p.bars.length-1,family:p.family,target:p.target,templateId:p.id});cursor+=p.bars.length;}
+}
+function formForSeed(params:Params):'AABA'|'ABAC'{return unit(params.seed,11)<(params.preset==='classic'?0.64:0.56)?'AABA':'ABAC';}
 
 export function buildStandardChorusPlan(params:Params,chorus:number,previousSummary?:string):ChorusPlan{
   const form=formForSeed(params);const bars:string[]=[];const sections:string[]=[];const centers:TonalCenterPlan[]=[];const phrases:PhraseTrace[]=[];
-  const a1=makeA(params,1000+chorus*101,false);
-  const reuseA1=params.color<72||unit(params.seed,1080+chorus)<0.68;
-  const a2=makeA(params,1120+chorus*103,false,reuseA1?a1.phrases[0]:undefined,new Set([a1.phrases[1].id]));
+  let aFamily=weightedPick(A_FAMILIES,params,1000+chorus*101);
+  if(previousSummary?.includes(aFamily.family)&&params.choruses>1){aFamily=weightedPick(A_FAMILIES,params,1040+chorus*103,new Set([aFamily.id]));}
   const append=(name:string,result:SectionResult,intent:string)=>{const base=bars.length;bars.push(...result.bars);sections.push(...Array(result.bars.length).fill(name));addMetadata(chorus,name,base,result,intent,centers,phrases);};
+
   if(form==='AABA'){
-    append('A1',a1,'state an 8-bar songbook phrase and lead into a contrasting second ending');
-    append('A2',a2,'repeat/develop the A identity with a different cadence rather than generating unrelated chords');
-    let bridge=pick(BRIDGES,params,1300+chorus*107);if(previousSummary?.includes(bridge.family))bridge=pick(BRIDGES,params,1340+chorus*109,new Set([bridge.id]));
-    append('B',{bars:[...bridge.bars],centers:[...bridge.centers],phrases:[bridge]},'move through a planned chain of temporary key centers, then prepare the return home');
-    const a3=makeA(params,1460+chorus*113,true,a1.phrases[0]);append('A3',a3,'recall the opening A phrase and use a resolved final cadence');
-    return{bars,sections,centers,phrases,summary:`AABA · ${a1.phrases[0].family} · B ${bridge.family} · resolved A return`};
+    append('A1',asASection(aFamily,'first'),'state a complete eight-bar harmonic sentence');
+    append('A2',asASection(aFamily,'second'),'repeat the A grammar with a real second ending');
+    let bridge=weightedPick(BRIDGES,params,1300+chorus*107);if(previousSummary?.includes(bridge.family))bridge=weightedPick(BRIDGES,params,1340+chorus*109,new Set([bridge.id]));
+    append('B',{bars:[...bridge.bars],centers:[...bridge.centers],phrases:[bridge]},'move through planned temporary key centers and prepare the home-key return');
+    append('A3',asASection(aFamily,'final'),'return to the same A grammar with a resolved final ending');
+    return{bars,sections,centers,phrases,summary:`AABA · ${aFamily.family} · B ${bridge.family} · resolved A return`};
   }
-  append('A1',a1,'state the main 8-bar harmonic identity');
-  let b=pick(BRIDGES,params,1600+chorus*127);if(previousSummary?.includes(b.family))b=pick(BRIDGES,params,1640+chorus*131,new Set([b.id]));
-  append('B',{bars:[...b.bars],centers:[...b.centers],phrases:[b]},'provide a true contrasting tonal-center excursion');
-  append('A2',a2,'return to the opening phrase with a changed ending');
-  const c=pick(C_SECTIONS,params,1780+chorus*137);append('C',{bars:[...c.bars],centers:[...c.centers],phrases:[c]},'close through a coherent related-key route rather than a random substitution chain');
-  return{bars,sections,centers,phrases,summary:`ABAC · ${a1.phrases[0].family} · B ${b.family} · A return · C ${c.family}`};
+
+  append('A1',asASection(aFamily,'first'),'state a complete eight-bar harmonic sentence');
+  let b=weightedPick(BRIDGES,params,1600+chorus*127);if(previousSummary?.includes(b.family))b=weightedPick(BRIDGES,params,1640+chorus*131,new Set([b.id]));
+  append('B',{bars:[...b.bars],centers:[...b.centers],phrases:[b]},'provide a contrasting planned tonal-center excursion');
+  append('A2',asASection(aFamily,'second'),'return to the A grammar with its second ending');
+  const c=weightedPick(C_SECTIONS,params,1780+chorus*137);
+  append('C',{bars:[...c.bars],centers:[...c.centers],phrases:[c]},'close through one coherent related-key route');
+  return{bars,sections,centers,phrases,summary:`ABAC · ${aFamily.family} · B ${b.family} · A return · C ${c.family}`};
 }
