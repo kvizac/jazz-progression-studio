@@ -1,5 +1,6 @@
 import type { GeneratedChart, Params, RenderedBar } from './types';
 import { buildChorusPlan, formLength } from './harmonyModel';
+import { buildStandardChorusPlan, STANDARD_FORM_LENGTH } from './standardModel';
 import { parseRomanToken } from './theory';
 
 function validate(params: Params): void {
@@ -15,20 +16,18 @@ function validate(params: Params): void {
 }
 
 /**
- * Structural generation pipeline:
- * 1. form / section plan
- * 2. tonal-center route
- * 3. phrase-grammar selection
- * 4. corpus-informed weighted realization
- * 5. roman-token parsing / enharmonic spelling
- *
- * Playback voicing happens later in voicings.ts, so harmonic structure and voicing
- * complexity are intentionally independent concerns.
+ * Corpus Form Engine pipeline:
+ * 1. choose whole form (legacy form or 32-bar AABA/ABAC standard)
+ * 2. plan section-level tonal destinations
+ * 3. choose phrase families conditioned on section role and harmonic color
+ * 4. realize weighted corpus-informed Roman-function paths
+ * 5. parse/spell chords in the concert key
+ * 6. hand the chart to the existing guide-tone voice-leading layer
  */
 export function buildChart(params: Params): GeneratedChart {
   validate(params);
 
-  const mode = params.type === 'iimino' ? 'minor' : 'major';
+  const mode = params.type === 'iimino' && !params.standardForm ? 'minor' : 'major';
   const bars: RenderedBar[] = [];
   const variantNames: string[] = [];
   const tonalCenters: NonNullable<GeneratedChart['tonalCenters']> = [];
@@ -36,7 +35,9 @@ export function buildChart(params: Params): GeneratedChart {
   let previousSummary: string | undefined;
 
   for (let chorus = 0; chorus < params.choruses; chorus++) {
-    const plan = buildChorusPlan(params, chorus, previousSummary);
+    const plan = params.standardForm
+      ? buildStandardChorusPlan(params, chorus, previousSummary)
+      : buildChorusPlan(params, chorus, previousSummary);
     previousSummary = plan.summary;
     variantNames.push(plan.summary);
     tonalCenters.push(...plan.centers);
@@ -72,14 +73,15 @@ export function buildChart(params: Params): GeneratedChart {
 
   return {
     bars,
-    formLength: formLength(params.type),
+    formLength: params.standardForm ? STANDARD_FORM_LENGTH : formLength(params.type),
     variantNames,
     tonalCenters,
     phrases,
   };
 }
 
-export function formName(type: Params['type']): string {
+export function formName(type: Params['type'], standardForm = false): string {
+  if (standardForm) return '32-Bar Jazz Standard';
   return type === 'iivi'
     ? 'ii–V–I Major'
     : type === 'iimino'
