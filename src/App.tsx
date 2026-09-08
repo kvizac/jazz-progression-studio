@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Params, TestResult } from './types';
+import type { HarmonyStyle, Params, TestResult } from './types';
 import { buildChart, formName } from './engine';
 import { drawChart, exportCanvasPng } from './renderCanvas';
 import { startPlayback, type PlaybackHandle } from './audio';
@@ -8,10 +8,10 @@ import { runAcceptanceTests } from './acceptance';
 import { APP_VERSION, ENGINE_LABEL } from './version';
 
 const KEYS: Params['key'][] = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
-const STYLE_NAMES:Record<Params['preset'],string>={classic:'Classic Jazz',bebop:'Bebop',modern:'Modern Jazz',neosoul:'Neo-Soul',rnb:'R&B / Soul'};
+const STYLE_NAMES:Record<HarmonyStyle,string>={classic:'Classic Jazz',bebop:'Bebop',modern:'Modern Jazz',neosoul:'Neo-Soul',rnb:'R&B / Soul'};
 
 const INITIAL: Params = {
-  key:'Bb', type:'rhythm', standardForm:true, preset:'modern', choruses:1, bpm:124,
+  key:'Bb', type:'rhythm', standardForm:true, preset:'classic', style:'modern', choruses:1, bpm:124,
   groove:'swing', swing:0.62, strum:true, strumMs:12,
   instrument:'piano', complexity:'extended', color:52, comping:'sparse', metronome:true,
   humanize:true, humanizeAmount:58, seed:1701,
@@ -46,13 +46,12 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement|null>(null);
   const playbackRef = useRef<PlaybackHandle|null>(null);
 
+  const harmonyStyle:HarmonyStyle=params.style??params.preset;
   const chart = useMemo(()=>buildChart(params),[params]);
   const splitBars = useMemo(()=>chart.bars.filter(b=>b.events.length>1).length,[chart]);
   const firstChorusCenters = useMemo(()=>chart.tonalCenters?.filter(c=>c.chorus===0) ?? [],[chart]);
   const progressionChoice: ProgressionChoice = params.standardForm ? 'standard' : params.type;
-  const structuralForm = params.standardForm
-    ? (chart.variantNames[0]?.startsWith('ABAC') ? 'ABAC' : 'AABA')
-    : STYLE_NAMES[params.preset];
+  const structuralForm = params.standardForm ? (chart.variantNames[0]?.startsWith('ABAC') ? 'ABAC' : 'AABA') : STYLE_NAMES[harmonyStyle];
 
   const log = (message:string) => setLogs(l=>[{time:new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}),message},...l].slice(0,30));
   const update = <K extends keyof Params>(key:K,value:Params[K]) => setParams(p=>({...p,[key]:value}));
@@ -60,6 +59,10 @@ export default function App() {
     playbackRef.current?.stop();
     if(value==='standard') setParams(p=>({...p,standardForm:true}));
     else setParams(p=>({...p,standardForm:false,type:value}));
+  };
+  const selectStyle=(value:HarmonyStyle)=>{
+    playbackRef.current?.stop();
+    setParams(p=>({...p,style:value,preset:value==='classic'||value==='bebop'?value:p.preset}));
   };
 
   useEffect(()=>{
@@ -77,11 +80,11 @@ export default function App() {
   const generate = () => {
     playbackRef.current?.stop();
     const seed = newSeed();
-    setStatus({kind:'working',text:`Writing ${STYLE_NAMES[params.preset]} form and performance…`});
+    setStatus({kind:'working',text:`Writing ${STYLE_NAMES[harmonyStyle]} form and performance…`});
     setParams(p=>({...p,seed}));
     requestAnimationFrame(()=>{
       setStatus({kind:'success',text:'New harmonic route generated'});
-      log(`Generated ${STYLE_NAMES[params.preset]} · ${formName(params.type,params.standardForm)} · seed ${seed}`);
+      log(`Generated ${STYLE_NAMES[harmonyStyle]} · ${formName(params.type,params.standardForm)} · seed ${seed}`);
     });
   };
 
@@ -91,7 +94,7 @@ export default function App() {
       setStatus({kind:'working',text:params.instrument==='piano'?'Loading Yamaha C5 piano samples…':'Starting audio…'});
       playbackRef.current = await startPlayback(params,chart,setActiveBar);
       setStatus({kind:'success',text:params.humanize===false?'Playing on grid':`Playing · humanize ${params.humanizeAmount??55}%`});
-      log(`Playback ${STYLE_NAMES[params.preset]} · ${params.bpm} BPM · ${params.metronome?'click on':'click off'}`);
+      log(`Playback ${STYLE_NAMES[harmonyStyle]} · ${params.bpm} BPM · ${params.metronome?'click on':'click off'}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Playback failed.';
       setStatus({kind:'error',text:message}); log(`Playback error: ${message}`);
@@ -139,7 +142,7 @@ export default function App() {
             <option value="standard">32-Bar Song Form</option>
             <option value="iivi">ii–V–I · major</option><option value="iimino">iiø–V–i · minor</option><option value="blues">12-Bar Jazz Blues</option><option value="rhythm">Rhythm Changes · AABA</option>
           </select></label>
-          <label className="field"><span>Harmony style</span><select value={params.preset} onChange={e=>update('preset',e.target.value as Params['preset'])}>
+          <label className="field"><span>Harmony style</span><select value={harmonyStyle} onChange={e=>selectStyle(e.target.value as HarmonyStyle)}>
             <option value="classic">Classic Jazz</option><option value="bebop">Bebop</option><option value="modern">Modern Jazz</option><option value="neosoul">Neo-Soul</option><option value="rnb">R&B / Soul</option>
           </select></label>
           <Segmented label="Chord detail" value={params.complexity} onChange={v=>update('complexity',v)} items={[{value:'triads',label:'Triads'},{value:'sevenths',label:'7ths'},{value:'extended',label:'Extended'}]} />
@@ -175,7 +178,7 @@ export default function App() {
 
       <section className="content-panel">
         <div className="hero-row">
-          <div><span className="eyebrow">CURRENT FORM · ENGINE v{APP_VERSION}</span><h2>{params.key} · {STYLE_NAMES[params.preset]} · {formName(params.type,params.standardForm)}</h2><p>{chart.variantNames.join(' · ')}</p></div>
+          <div><span className="eyebrow">CURRENT FORM · ENGINE v{APP_VERSION}</span><h2>{params.key} · {STYLE_NAMES[harmonyStyle]} · {formName(params.type,params.standardForm)}</h2><p>{chart.variantNames.join(' · ')}</p></div>
           <div className="hero-actions"><button className="icon-btn primary" onClick={play} type="button">▶ <span>Play</span></button><button className="icon-btn" onClick={stop} type="button">■ <span>Stop</span></button></div>
         </div>
 
@@ -194,10 +197,10 @@ export default function App() {
           <button type="button" className="tests-toggle" onClick={()=>setShowTests(v=>!v)}><span className={passed===tests.length?'test-ok':'test-bad'}>{passed}/{tests.length}</span> acceptance tests {showTests?'▲':'▼'}</button>
         </div>
 
-        {showTests&&<div className="tests-panel"><div className="tests-head"><div><b>Built-in acceptance harness</b><span>Legacy forms plus structural style checks; CI runs a much larger multi-style matrix</span></div><button type="button" onClick={rerunTests}>Run again</button></div><div className="tests-grid">{tests.map(t=><div key={t.name} className={t.pass?'pass':'fail'}><i>{t.pass?'✓':'×'}</i><span><b>{t.name}</b><small>{t.detail}</small></span></div>)}</div></div>}
+        {showTests&&<div className="tests-panel"><div className="tests-head"><div><b>Built-in acceptance harness</b><span>Legacy forms plus structural style checks; CI runs a larger multi-style matrix</span></div><button type="button" onClick={rerunTests}>Run again</button></div><div className="tests-grid">{tests.map(t=><div key={t.name} className={t.pass?'pass':'fail'}><i>{t.pass?'✓':'×'}</i><span><b>{t.name}</b><small>{t.detail}</small></span></div>)}</div></div>}
 
         <div className="lower-grid">
-          <div className="info-card"><span className="eyebrow">WHY v5 FEELS DIFFERENT</span><h3>Style changes the harmony and the hands.</h3><p>Modern Jazz favors suspended dominants, Lydian color and wider tonal-center movement. Neo-Soul favors major-9/minor-9 color, modal borrowing, backdoor motion and softer resolutions. R&B/Soul favors gospel turnarounds, secondary dominants and strong pocket. Playback then chooses a different comping pattern bar by bar, accents style-specific beats, varies note length and velocity, adds a small bounded pocket delay, and changes chord-roll width and direction without moving the harmonic change itself off the beat.</p></div>
+          <div className="info-card"><span className="eyebrow">WHY v5 FEELS DIFFERENT</span><h3>Style changes the harmony and the hands.</h3><p>Modern Jazz favors suspended dominants, Lydian color and wider tonal-center movement. Neo-Soul favors major-9/minor-9 color, modal borrowing, backdoor motion and softer resolutions. R&B/Soul favors gospel turnarounds, secondary dominants and strong pocket. Playback changes comping pattern bar by bar, accents style-specific beats, varies note length and velocity, adds a small bounded pocket delay, and changes chord-roll width and direction without moving the harmonic change itself off the beat.</p></div>
           <div className="log-card"><div className="log-head"><b>Activity</b><span>{logs.length} events</span></div><div className="log-list">{logs.length?logs.map((l,i)=><div key={i}><time>{l.time}</time><span>{l.message}</span></div>):<p>No events yet. Generate, play or export something.</p>}</div></div>
         </div>
       </section>
