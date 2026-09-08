@@ -59,7 +59,7 @@ function createMetronome():MetronomeRack{
   const noise=new Tone.NoiseSynth({noise:{type:'white'},envelope:{attack:.001,decay:.018,sustain:0,release:.008},volume:-17}).connect(hp);
   const accent=new Tone.Synth({oscillator:{type:'sine'},envelope:{attack:.001,decay:.025,sustain:0,release:.01},volume:-17}).toDestination();
   return{
-    trigger:(time,downbeat)=>{noise.triggerAttackRelease('64n',time,downbeat?.72:.40);if(downbeat)accent.triggerAttackRelease('C7','64n',time,.30);},
+    trigger:(time,downbeat)=>{noise.triggerAttackRelease('64n',time,downbeat ? .72 : .40);if(downbeat)accent.triggerAttackRelease('C7','64n',time,.30);},
     dispose:()=>{noise.dispose();accent.dispose();hp.dispose();},
   };
 }
@@ -92,10 +92,10 @@ export async function startPlayback(params:Params,chart:GeneratedChart,onBar:OnB
           const ordered=event.midi.map(midiToName);
           const notes=perf.direction==='down'?[...ordered].reverse():ordered;
           const requested=params.strum?params.strumMs/1000:0;
-          const pianoCap=(params.preset==='neosoul'||params.preset==='rnb')?.018:.014;
+          const pianoCap=(params.preset==='neosoul'||params.preset==='rnb') ? .018 : .014;
           const strum=params.instrument==='piano'?Math.min(requested*perf.strumScale,pianoCap):requested*perf.strumScale;
           const triggerTime=time+perf.timingMs/1000;
-          const baseVelocity=params.instrument==='piano'?.58:.70;
+          const baseVelocity=params.instrument==='piano' ? .58 : .70;
           notes.forEach((note,i)=>{
             const noteAccent=1+((i%3)-1)*.015;
             const velocity=Math.max(.28,Math.min(.94,baseVelocity*perf.velocityScale*noteAccent));
