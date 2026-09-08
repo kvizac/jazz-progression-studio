@@ -5,6 +5,7 @@ export type Groove = 'straight'|'swing';
 export type Instrument = 'piano'|'guitar'|'bass';
 export type Complexity = 'triads'|'sevenths'|'extended';
 export type CompingStyle = 'sustained'|'sparse'|'bebop';
+export type TonalMode = 'major'|'minor'|'dominant';
 
 export type Params = {
   key: KeyName;
@@ -18,7 +19,7 @@ export type Params = {
   strumMs: number;
   instrument: Instrument;
   complexity: Complexity;
-  color: number; // 0..100, amount of reharmonization
+  color: number; // 0..100, harmonic distance / reharmonization amount
   comping: CompingStyle;
   seed: number;
 };
@@ -54,10 +55,33 @@ export type RenderedBar = {
   label: string;
 };
 
+/** Section-level tonal route chosen before individual chords are realized. */
+export type TonalCenterPlan = {
+  chorus: number;
+  section: string;
+  centers: string[];
+  mode: TonalMode;
+  intent: string;
+};
+
+/** Phrase-level trace of the grammar decisions that produced a section. */
+export type PhraseTrace = {
+  chorus: number;
+  section: string;
+  startBar: number;
+  endBar: number;
+  family: string;
+  target: string;
+  templateId: string;
+};
+
 export type GeneratedChart = {
   bars: RenderedBar[];
   formLength: number;
+  /** One concise route summary per chorus, kept for the existing UI. */
   variantNames: string[];
+  tonalCenters?: TonalCenterPlan[];
+  phrases?: PhraseTrace[];
 };
 
 export type VoicedEvent = ChordEvent & {
