@@ -1,5 +1,5 @@
 export type KeyName = 'C'|'Db'|'D'|'Eb'|'E'|'F'|'Gb'|'G'|'Ab'|'A'|'Bb'|'B';
-export type ProgressionType = 'standard'|'iivi'|'iimino'|'blues'|'rhythm';
+export type ProgressionType = 'iivi'|'iimino'|'blues'|'rhythm';
 export type Preset = 'classic'|'bebop';
 export type Groove = 'straight'|'swing';
 export type Instrument = 'piano'|'guitar'|'bass';
@@ -10,6 +10,8 @@ export type TonalMode = 'major'|'minor'|'dominant';
 export type Params = {
   key: KeyName;
   type: ProgressionType;
+  /** When true, the engine generates a full corpus-informed 32-bar standard instead of a legacy form. */
+  standardForm: boolean;
   preset: Preset;
   choruses: number;
   bpm: number;
@@ -56,7 +58,6 @@ export type RenderedBar = {
   label: string;
 };
 
-/** Section-level tonal route chosen before individual chords are realized. */
 export type TonalCenterPlan = {
   chorus: number;
   section: string;
@@ -65,7 +66,6 @@ export type TonalCenterPlan = {
   intent: string;
 };
 
-/** Phrase-level trace of the grammar decisions that produced a section. */
 export type PhraseTrace = {
   chorus: number;
   section: string;
@@ -79,7 +79,6 @@ export type PhraseTrace = {
 export type GeneratedChart = {
   bars: RenderedBar[];
   formLength: number;
-  /** One concise route summary per chorus, kept for the existing UI. */
   variantNames: string[];
   tonalCenters?: TonalCenterPlan[];
   phrases?: PhraseTrace[];
