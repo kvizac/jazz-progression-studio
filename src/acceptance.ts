@@ -4,8 +4,8 @@ import { parseRomanToken } from './theory';
 
 function p(overrides: Partial<Params>): Params {
   return {
-    key:'C', type:'iivi', preset:'classic', choruses:1, bpm:140, groove:'swing', swing:0.62,
-    strum:false, strumMs:22, instrument:'piano', complexity:'sevenths', color:0, comping:'sustained', seed:12345,
+    key:'C', type:'iivi', standardForm:false, preset:'classic', choruses:1, bpm:140, groove:'swing', swing:0.62,
+    strum:false, strumMs:22, instrument:'piano', complexity:'sevenths', color:0, comping:'sustained', metronome:true, seed:12345,
     ...overrides,
   };
 }
@@ -73,6 +73,23 @@ export function runAcceptanceTests(): TestResult[] {
     const names = chart.variantNames;
     const varied = names.every((n,i)=>i===0||n!==names[i-1]);
     out.push({name:'Extended choruses avoid immediate repeats',pass:varied,detail:names.join(' → ')});
+  }
+  {
+    const chart=buildChart(p({key:'Bb',standardForm:true,type:'rhythm',complexity:'extended',color:56,seed:1701}));
+    const sections=[...new Set(chart.bars.map(b=>b.section))];
+    out.push({name:'v3 standard form is 32 bars',pass:chart.bars.length===32&&chart.formLength===32,detail:`${chart.bars.length} bars · ${sections.join('-')}`});
+  }
+  {
+    const chart=buildChart(p({key:'Bb',standardForm:true,type:'rhythm',complexity:'extended',color:62,seed:9917}));
+    const routes=chart.tonalCenters??[];
+    const hasContrast=routes.some(r=>r.section==='B'&&new Set(r.centers).size>=3);
+    out.push({name:'v3 standard plans contrasting tonal centers',pass:routes.length===4&&hasContrast,detail:routes.map(r=>`${r.section}:${r.centers.join('>')}`).join(' · ')});
+  }
+  {
+    const chart=buildChart(p({key:'C',standardForm:true,type:'rhythm',complexity:'sevenths',color:58,seed:4711}));
+    const sectionNames=[...new Set(chart.bars.map(b=>b.section))];
+    const formOK=chart.variantNames[0].startsWith('AABA')||chart.variantNames[0].startsWith('ABAC');
+    out.push({name:'v3 standard chooses AABA or ABAC',pass:formOK&&sectionNames.length===4,detail:chart.variantNames[0]});
   }
   return out;
 }
