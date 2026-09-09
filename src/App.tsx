@@ -1,209 +1,60 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { HarmonyStyle, Params, TestResult } from './types';
-import { buildChart, formName } from './engine';
-import { drawChart, exportCanvasPng } from './renderCanvas';
-import { startPlayback, type PlaybackHandle } from './audio';
-import { exportMidi } from './midi';
-import { runAcceptanceTests } from './acceptance';
-import { APP_VERSION, ENGINE_LABEL } from './version';
+import type { ChangeEvent, ReactNode } from 'react';
+import { DEFAULT, KEYS, STYLES, INTERVALS, QUALITY_LABELS, generate, revoice, transpose, performance, freshSeed, noteName, makeChord, barCount, chordLabel, validateProject } from './studio';
+import type { Project, Settings, Cell } from './studio';
+import type { ChordQuality, KeyName } from './types';
+import { audition, playProject, stopAudio } from './studioAudio';
+import { midiBytes, download } from './studioMidi';
+import { APP_VERSION } from './version';
+import { PC } from './theory';
 
-const KEYS: Params['key'][] = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
-const STYLE_NAMES:Record<HarmonyStyle,string>={classic:'Classic Jazz',bebop:'Bebop',modern:'Modern Jazz',neosoul:'Neo-Soul',rnb:'R&B / Soul'};
-
-const INITIAL: Params = {
-  key:'Bb', type:'rhythm', standardForm:true, preset:'classic', style:'modern', choruses:1, bpm:124,
-  groove:'swing', swing:0.62, strum:true, strumMs:12,
-  instrument:'piano', complexity:'extended', color:52, comping:'sparse', metronome:true,
-  humanize:true, humanizeAmount:58, seed:1701,
-};
-
-type StatusKind = 'ready'|'working'|'success'|'error';
-type LogEntry = { time:string; message:string };
-type ProgressionChoice = 'standard'|Params['type'];
-
-function newSeed(): number {
-  const a = new Uint32Array(1);
-  crypto.getRandomValues(a);
-  return a[0];
-}
-
-function Segmented<T extends string>({value,items,onChange,label}:{value:T;items:{value:T;label:string}[];onChange:(v:T)=>void;label:string}) {
-  return <div>
-    <div className="label-row"><span>{label}</span></div>
-    <div className="segmented" role="group" aria-label={label}>
-      {items.map(item=><button key={item.value} className={value===item.value?'active':''} onClick={()=>onChange(item.value)} type="button">{item.label}</button>)}
-    </div>
-  </div>;
-}
-
-export default function App() {
-  const [params,setParams] = useState<Params>(INITIAL);
-  const [activeBar,setActiveBar] = useState(-1);
-  const [status,setStatus] = useState<{kind:StatusKind;text:string}>({kind:'ready',text:'Ready'});
-  const [logs,setLogs] = useState<LogEntry[]>([]);
-  const [tests,setTests] = useState<TestResult[]>(()=>runAcceptanceTests());
-  const [showTests,setShowTests] = useState(false);
-  const canvasRef = useRef<HTMLCanvasElement|null>(null);
-  const playbackRef = useRef<PlaybackHandle|null>(null);
-
-  const harmonyStyle:HarmonyStyle=params.style??params.preset;
-  const chart = useMemo(()=>buildChart(params),[params]);
-  const splitBars = useMemo(()=>chart.bars.filter(b=>b.events.length>1).length,[chart]);
-  const firstChorusCenters = useMemo(()=>chart.tonalCenters?.filter(c=>c.chorus===0) ?? [],[chart]);
-  const progressionChoice: ProgressionChoice = params.standardForm ? 'standard' : params.type;
-  const structuralForm = params.standardForm ? (chart.variantNames[0]?.startsWith('ABAC') ? 'ABAC' : 'AABA') : STYLE_NAMES[harmonyStyle];
-
-  const log = (message:string) => setLogs(l=>[{time:new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}),message},...l].slice(0,30));
-  const update = <K extends keyof Params>(key:K,value:Params[K]) => setParams(p=>({...p,[key]:value}));
-  const selectProgression = (value:ProgressionChoice) => {
-    playbackRef.current?.stop();
-    if(value==='standard') setParams(p=>({...p,standardForm:true}));
-    else setParams(p=>({...p,standardForm:false,type:value}));
-  };
-  const selectStyle=(value:HarmonyStyle)=>{
-    playbackRef.current?.stop();
-    setParams(p=>({...p,style:value,preset:value==='classic'||value==='bebop'?value:p.preset}));
-  };
-
-  useEffect(()=>{
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const redraw = () => drawChart(canvas,chart,params,activeBar);
-    redraw();
-    const ro = new ResizeObserver(redraw);
-    if (canvas.parentElement) ro.observe(canvas.parentElement);
-    return ()=>ro.disconnect();
-  },[chart,params,activeBar]);
-
-  useEffect(()=>()=>playbackRef.current?.stop(),[]);
-
-  const generate = () => {
-    playbackRef.current?.stop();
-    const seed = newSeed();
-    setStatus({kind:'working',text:`Writing ${STYLE_NAMES[harmonyStyle]} form and performance…`});
-    setParams(p=>({...p,seed}));
-    requestAnimationFrame(()=>{
-      setStatus({kind:'success',text:'New harmonic route generated'});
-      log(`Generated ${STYLE_NAMES[harmonyStyle]} · ${formName(params.type,params.standardForm)} · seed ${seed}`);
-    });
-  };
-
-  const play = async () => {
-    try {
-      playbackRef.current?.stop();
-      setStatus({kind:'working',text:params.instrument==='piano'?'Loading Yamaha C5 piano samples…':'Starting audio…'});
-      playbackRef.current = await startPlayback(params,chart,setActiveBar);
-      setStatus({kind:'success',text:params.humanize===false?'Playing on grid':`Playing · humanize ${params.humanizeAmount??55}%`});
-      log(`Playback ${STYLE_NAMES[harmonyStyle]} · ${params.bpm} BPM · ${params.metronome?'click on':'click off'}`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Playback failed.';
-      setStatus({kind:'error',text:message}); log(`Playback error: ${message}`);
-    }
-  };
-
-  const stop = () => {
-    playbackRef.current?.stop(); playbackRef.current=null; setActiveBar(-1);
-    setStatus({kind:'ready',text:'Stopped'}); log('Playback stopped');
-  };
-
-  const midi = () => {
-    try { exportMidi(params,chart); setStatus({kind:'success',text:'MIDI exported'}); log('Exported jazz_progression.mid'); }
-    catch (error) { const m=error instanceof Error?error.message:'MIDI export failed.';setStatus({kind:'error',text:m});log(`MIDI error: ${m}`); }
-  };
-
-  const png = () => {
-    try { if(!canvasRef.current) throw new Error('Chart is not ready.'); exportCanvasPng(canvasRef.current); setStatus({kind:'success',text:'Chart PNG exported'}); log('Exported chart PNG'); }
-    catch(error){const m=error instanceof Error?error.message:'PNG export failed.';setStatus({kind:'error',text:m});}
-  };
-
-  const rerunTests = () => { const r=runAcceptanceTests();setTests(r);log(`Tests: ${r.filter(t=>t.pass).length}/${r.length} passed`); };
-  const passed = tests.filter(t=>t.pass).length;
-
-  return <div className="app-shell">
-    <header className="topbar">
-      <div className="brand"><div className="brand-mark">J</div><div><strong>Jazz Progression Studio</strong><span>form grammar · style language · humanized sampled piano</span></div></div>
-      <div className="topbar-right">
-        <div className="version-badge"><b>v{APP_VERSION}</b><span>{ENGINE_LABEL}</span></div>
-        <div className={`status-pill ${status.kind}`}><i />{status.text}</div>
-      </div>
-    </header>
-
-    <main className="workspace">
-      <aside className="control-panel">
-        <div className="panel-head"><span className="eyebrow">STYLE + PERFORMANCE ENGINE</span><h1>Build a progression</h1><p>Generate coherent harmonic sentences, then perform them with style-aware comping, accents, microtiming and dynamic chord rolls.</p></div>
-
-        <section className="control-section">
-          <div className="label-row"><span>Concert key</span><small>{params.key}</small></div>
-          <div className="key-grid">{KEYS.map(k=><button type="button" key={k} className={params.key===k?'active':''} onClick={()=>update('key',k)}>{k}</button>)}</div>
-        </section>
-
-        <section className="control-section">
-          <label className="field"><span>Progression type</span><select value={progressionChoice} onChange={e=>selectProgression(e.target.value as ProgressionChoice)}>
-            <option value="standard">32-Bar Song Form</option>
-            <option value="iivi">ii–V–I · major</option><option value="iimino">iiø–V–i · minor</option><option value="blues">12-Bar Jazz Blues</option><option value="rhythm">Rhythm Changes · AABA</option>
-          </select></label>
-          <label className="field"><span>Harmony style</span><select value={harmonyStyle} onChange={e=>selectStyle(e.target.value as HarmonyStyle)}>
-            <option value="classic">Classic Jazz</option><option value="bebop">Bebop</option><option value="modern">Modern Jazz</option><option value="neosoul">Neo-Soul</option><option value="rnb">R&B / Soul</option>
-          </select></label>
-          <Segmented label="Chord detail" value={params.complexity} onChange={v=>update('complexity',v)} items={[{value:'triads',label:'Triads'},{value:'sevenths',label:'7ths'},{value:'extended',label:'Extended'}]} />
-        </section>
-
-        <section className="control-section">
-          <div className="range-field"><div className="label-row"><span>Harmonic distance</span><small>{params.color}%</small></div><input aria-label="Harmonic distance" type="range" min="0" max="100" value={params.color} onChange={e=>update('color',Number(e.target.value))}/><p className="hint">Changes temporary centers, modal borrowing and chromatic routes inside the selected style.</p></div>
-          <div className="two-col">
-            <label className="field"><span>Choruses</span><input type="number" min="1" max="10" value={params.choruses} onChange={e=>update('choruses',Math.max(1,Math.min(10,Number(e.target.value)||1)))}/></label>
-            <label className="field"><span>Tempo</span><div className="input-suffix"><input type="number" min="40" max="300" value={params.bpm} onChange={e=>update('bpm',Math.max(40,Math.min(300,Number(e.target.value)||124)))}/><b>BPM</b></div></label>
-          </div>
-        </section>
-
-        <section className="control-section">
-          <Segmented label="Groove" value={params.groove} onChange={v=>update('groove',v)} items={[{value:'straight',label:'Straight'},{value:'swing',label:'Swing'}]} />
-          {params.groove==='swing'&&<div className="range-field"><div className="label-row"><span>Swing ratio</span><small>{Math.round(params.swing*100)}%</small></div><input aria-label="Swing ratio" type="range" min="60" max="66" value={Math.round(params.swing*100)} onChange={e=>update('swing',Number(e.target.value)/100)}/></div>}
-          <Segmented label="Comping density" value={params.comping} onChange={v=>update('comping',v)} items={[{value:'sustained',label:'Long'},{value:'sparse',label:'Pocket'},{value:'bebop',label:'Active'}]} />
-          <div className="two-col">
-            <label className="field"><span>Instrument</span><select value={params.instrument} onChange={e=>update('instrument',e.target.value as Params['instrument'])}><option value="piano">Piano</option><option value="guitar">Guitar</option><option value="bass">Bass</option></select></label>
-            <label className="switch-field"><span><b>Metronome</b><small>{params.metronome?'Quarter-note click':'Off'}</small></span><input type="checkbox" checked={params.metronome} onChange={e=>update('metronome',e.target.checked)}/><i /></label>
-          </div>
-          <div className="two-col">
-            <label className="switch-field"><span><b>Humanize</b><small>{params.humanize===false?'Off':`${params.humanizeAmount??55}%`}</small></span><input type="checkbox" checked={params.humanize!==false} onChange={e=>update('humanize',e.target.checked)}/><i /></label>
-            <label className="switch-field"><span><b>Dynamic roll</b><small>{params.strum?`max ${params.strumMs} ms`:'Off'}</small></span><input type="checkbox" checked={params.strum} onChange={e=>update('strum',e.target.checked)}/><i /></label>
-          </div>
-          {params.humanize!==false&&<div className="range-field compact"><div className="label-row"><span>Human feel</span><small>{params.humanizeAmount??55}%</small></div><input aria-label="Humanize amount" type="range" min="0" max="100" value={params.humanizeAmount??55} onChange={e=>update('humanizeAmount',Number(e.target.value))}/></div>}
-          {params.strum&&<div className="range-field compact"><div className="label-row"><span>Maximum chord roll</span><small>{params.strumMs} ms</small></div><input aria-label="Strum milliseconds" type="range" min="4" max={params.instrument==='piano'?20:60} value={Math.min(params.strumMs,params.instrument==='piano'?20:60)} onChange={e=>update('strumMs',Number(e.target.value))}/></div>}
-          <div className="audio-note"><b>REAL PIANO</b><small>Recorded Yamaha C5 · style-aware accents & timing</small></div>
-        </section>
-
-        <button type="button" className="generate-btn" onClick={generate}><span>Generate new form</span><kbd>↻</kbd></button>
-      </aside>
-
-      <section className="content-panel">
-        <div className="hero-row">
-          <div><span className="eyebrow">CURRENT FORM · ENGINE v{APP_VERSION}</span><h2>{params.key} · {STYLE_NAMES[harmonyStyle]} · {formName(params.type,params.standardForm)}</h2><p>{chart.variantNames.join(' · ')}</p></div>
-          <div className="hero-actions"><button className="icon-btn primary" onClick={play} type="button">▶ <span>Play</span></button><button className="icon-btn" onClick={stop} type="button">■ <span>Stop</span></button></div>
-        </div>
-
-        {firstChorusCenters.length>0&&<div className="route-strip" aria-label="Tonal-center plan">
-          {firstChorusCenters.map((route,i)=><div key={`${route.section}-${i}`}><b>{route.section}</b><span>{route.centers.join(' → ')}</span></div>)}
-        </div>}
-
-        <div className="metric-row">
-          <div><span>BARS</span><strong>{chart.bars.length}</strong></div><div><span>SPLIT BARS</span><strong>{splitBars}</strong></div><div><span>FORM</span><strong>{structuralForm}</strong></div><div><span>PERFORMANCE</span><strong>{params.humanize===false?'GRID':'HUMAN'}</strong></div>
-        </div>
-
-        <div className="chart-card"><canvas ref={canvasRef} aria-label="Chord chart" /></div>
-
-        <div className="action-strip">
-          <div><button type="button" className="export-btn" onClick={midi}><b>MIDI</b><span>Export for Ableton</span></button><button type="button" className="export-btn" onClick={png}><b>PNG</b><span>Save chord chart</span></button></div>
-          <button type="button" className="tests-toggle" onClick={()=>setShowTests(v=>!v)}><span className={passed===tests.length?'test-ok':'test-bad'}>{passed}/{tests.length}</span> acceptance tests {showTests?'▲':'▼'}</button>
-        </div>
-
-        {showTests&&<div className="tests-panel"><div className="tests-head"><div><b>Built-in acceptance harness</b><span>Legacy forms plus structural style checks; CI runs a larger multi-style matrix</span></div><button type="button" onClick={rerunTests}>Run again</button></div><div className="tests-grid">{tests.map(t=><div key={t.name} className={t.pass?'pass':'fail'}><i>{t.pass?'✓':'×'}</i><span><b>{t.name}</b><small>{t.detail}</small></span></div>)}</div></div>}
-
-        <div className="lower-grid">
-          <div className="info-card"><span className="eyebrow">WHY v5 FEELS DIFFERENT</span><h3>Style changes the harmony and the hands.</h3><p>Modern Jazz favors suspended dominants, Lydian color and wider tonal-center movement. Neo-Soul favors major-9/minor-9 color, modal borrowing, backdoor motion and softer resolutions. R&B/Soul favors gospel turnarounds, secondary dominants and strong pocket. Playback changes comping pattern bar by bar, accents style-specific beats, varies note length and velocity, adds a small bounded pocket delay, and changes chord-roll width and direction without moving the harmonic change itself off the beat.</p></div>
-          <div className="log-card"><div className="log-head"><b>Activity</b><span>{logs.length} events</span></div><div className="log-list">{logs.length?logs.map((l,i)=><div key={i}><time>{l.time}</time><span>{l.message}</span></div>):<p>No events yet. Generate, play or export something.</p>}</div></div>
-        </div>
-      </section>
-    </main>
-  </div>;
+const icons:Record<string,ReactNode>={play:<path d="m8 5 11 7-11 7Z"/>,stop:<rect x="6" y="6" width="12" height="12" rx="1"/>,refresh:<><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1"/></>,download:<><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></>,undo:<><path d="m8 4-5 5 5 5M3 9h10a7 7 0 0 1 7 7"/></>,redo:<><path d="m16 4 5 5-5 5m5-5H11a7 7 0 0 0-7 7"/></>,lock:<><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V6a4 4 0 0 1 8 0v4"/></>,unlock:<><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V6a4 4 0 0 1 8 0"/></>,note:<><path d="M9 18V5l11-2v13M9 8l11-2"/><ellipse cx="6" cy="18" rx="3" ry="2"/><ellipse cx="17" cy="16" rx="3" ry="2"/></>,save:<><path d="M4 3h13l4 4v14H3V3Z"/><path d="M7 3v6h9V3M7 21v-8h10v8"/></>,folder:<path d="M3 7h7l2-3h8v16H3Z"/>};
+function Icon({name}:{name:string}){return <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{icons[name]}</svg>;}
+function Field({label,children}:{label:string;children:ReactNode}){return <label className="field"><span>{label}</span>{children}</label>;}
+function Slider({label,value,max=100,min=0,unit='',onChange}:{label:string;value:number;max?:number;min?:number;unit?:string;onChange:(n:number)=>void}){return <label className="slider"><span>{label}<b>{value}{unit}</b></span><input type="range" min={min} max={max} value={value} onChange={e=>onChange(+e.target.value)}/></label>;}
+function Toggle({label,value,onChange}:{label:string;value:boolean;onChange:()=>void}){return <button type="button" className={`toggle ${value?'on':''}`} aria-pressed={value} onClick={onChange}><i/>{label}</button>;}
+const STORAGE='jazz-studio-v6';
+function initial(){try{const saved=localStorage.getItem(STORAGE);if(saved)return validateProject(JSON.parse(saved));}catch{/* A corrupt or obsolete autosave must not block startup. */}return generate(DEFAULT);}
+export default function App(){
+ const [project,setProject]=useState<Project>(initial),[selected,setSelected]=useState('0:0'),[playing,setPlaying]=useState(false),[loading,setLoading]=useState(false),[beat,setBeat]=useState(-1),[status,setStatus]=useState('Ready. Select a chord to make it yours.'),[history,setHistory]=useState<Project[]>([]),[future,setFuture]=useState<Project[]>([]),[range,setRange]=useState<[number,number]>([0,barCount(project.settings)]),[exportMode,setExportMode]=useState<'performance'|'blocks'>('performance'),[tracks,setTracks]=useState<'all'|'chords'|'bass'>('all'),[zoom,setZoom]=useState(4),[help,setHelp]=useState(false);
+ const s=project.settings,n=barCount(s),cell=project.cells.find(c=>c.id===selected)??project.cells[0],notes=useMemo(()=>performance(project),[project]);
+ const upload=useRef<HTMLInputElement>(null),chart=useRef<HTMLCanvasElement>(null),transportToken=useRef(0);
+ const stop=()=>{transportToken.current++;stopAudio();setPlaying(false);setLoading(false);setBeat(-1);};
+ const commit=(p:Project,message?:string)=>{stop();setHistory(h=>[...h,project].slice(-50));setFuture([]);setProject(p);if(barCount(p.settings)!==n)setRange([0,barCount(p.settings)]);if(message)setStatus(message);};
+ const setting=<K extends keyof Settings>(key:K,value:Settings[K])=>{commit({...project,settings:{...s,[key]:value}});};
+ const harmonic=(patch:Partial<Settings>)=>{const next={...s,...patch};if(next.form==='rhythm')next.mode='major';commit(generate(next,project.cells),'Harmony updated. Locked bars kept.');};
+ const regenerate=()=>{let p=generate({...s,seed:freshSeed()},project.cells);const sig=(x:Project)=>x.cells.map(c=>c.chord.symbol+':'+c.beats).join('|');for(let i=0;i<12&&sig(p)===sig(project);i++)p=generate({...s,seed:freshSeed()},project.cells);commit(p,sig(p)===sig(project)?'Your locked bars preserve this progression. Unlock a bar to explore more.':'New phrase generated. Locked bars kept.');};
+ const changeCell=(edit:(c:Cell)=>Cell,message='Chord updated.')=>commit({...project,cells:project.cells.map(c=>c.id===cell.id?edit(c):c)},message);
+ const undo=()=>{if(!history.length)return;stop();const p=history.at(-1)!;setFuture(f=>[project,...f]);setHistory(h=>h.slice(0,-1));setProject(p);setRange([0,barCount(p.settings)]);setStatus('Undone.');};
+ const redo=()=>{if(!future.length)return;stop();const p=future[0];setHistory(h=>[...h,project]);setFuture(f=>f.slice(1));setProject(p);setRange([0,barCount(p.settings)]);setStatus('Redone.');};
+ const play=async()=>{if(playing||loading){stop();setStatus('Stopped.');return;}const token=++transportToken.current;setLoading(true);setStatus(s.sound==='piano'?'Loading grand piano…':'Starting…');try{const ok=await playProject(project,notes,range,setBeat,()=>{setPlaying(false);setBeat(-1);setStatus('Playback finished.');});if(token!==transportToken.current)return;setLoading(false);setPlaying(ok);if(ok)setStatus('Playing the same performance used by MIDI export.');}catch(e){if(token!==transportToken.current)return;setLoading(false);setStatus((e as Error).message);}};
+ const hear=async(ns:number[]=cell.notes)=>{try{await audition(ns,s);}catch(e){setStatus((e as Error).message);}};
+ useEffect(()=>{try{localStorage.setItem(STORAGE,JSON.stringify(project));}catch{setStatus('Browser autosave unavailable. Use Save project to keep your work.');}},[project]);
+ useEffect(()=>()=>{transportToken.current++;stopAudio();},[]);
+ useEffect(()=>{const key=(e:KeyboardEvent)=>{if((e.target as HTMLElement).closest('input,select,textarea,button'))return;if(e.code==='Space'){e.preventDefault();void play();}if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();if(e.shiftKey)redo();else undo();}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);});
+ useEffect(()=>{const cv=chart.current;if(!cv)return;const ctx=cv.getContext('2d');if(!ctx)return;const width=1200,height=110+Math.ceil(n/4)*110;cv.width=width;cv.height=height;ctx.fillStyle='#fff';ctx.fillRect(0,0,width,height);ctx.fillStyle='#15171b';ctx.font='bold 26px sans-serif';ctx.fillText(`${s.key} ${s.mode} · ${STYLES[s.style]}`,28,42);ctx.font='16px sans-serif';ctx.fillText(`${s.bpm} BPM · 4/4 · ${project.route} · Studio v${APP_VERSION}`,28,70);for(let b=0;b<n;b++){const x=28+(b%4)*286,y=100+Math.floor(b/4)*110;ctx.strokeStyle='#aeb2b9';ctx.strokeRect(x,y,286,110);ctx.font='14px sans-serif';ctx.fillStyle='#656970';ctx.fillText(`${b+1} · ${project.cells.find(c=>c.bar===b)?.section}`,x+12,y+24);const cs=project.cells.filter(c=>c.bar===b);ctx.fillStyle='#15171b';cs.forEach(c=>{ctx.font=`bold ${cs.length>2?16:22}px sans-serif`;ctx.fillText(chordLabel(c,s),x+12+(c.beat/4)*266,y+66);});}},[project,n,s]);
+ const exportMidi=()=>{try{const ns=exportMode==='performance'?notes:performance(project,'blocks');if(!ns.some(v=>(tracks==='all'||v.track===tracks)&&v.beat>=range[0]*4&&v.beat<range[1]*4)){setStatus('No notes in that track. Enable Bass or export Keys.');return;}const bytes=midiBytes(project,ns,range,tracks);download(new Uint8Array(bytes).buffer,'audio/midi',`${s.key}-${s.mode}-${s.bpm}bpm-${range[1]-range[0]}bars-${exportMode}.mid`);setStatus('MIDI exported with tempo, chord markers and exact loop length.');}catch(e){setStatus((e as Error).message);}};
+ const load=async(e:ChangeEvent<HTMLInputElement>)=>{try{const file=e.target.files?.[0];if(!file)return;if(file.size>1000000)throw Error('Project file is too large.');const p=validateProject(JSON.parse(await file.text()));commit(p,'Project opened.');setRange([0,barCount(p.settings)]);setSelected(p.cells[0].id);}catch(err){setStatus((err as Error).message);}e.target.value='';};
+ const quality=(root:string,q:ChordQuality)=>{const chord=makeChord(root,q);const updated={...cell,chord,bassPc:chord.rootPc,locked:false};const voiced=revoice([updated],s)[0];changeCell(()=>voiced);};
+ const inversion=(up:boolean)=>{const a=[...cell.notes].sort((a,b)=>a-b);if(up)a.push(a.shift()!+12);else a.unshift(a.pop()!-12);if(a[0]<24||a.at(-1)!>96)return;changeCell(c=>({...c,notes:a}));void hear(a);};
+ const split=()=>{const first=Math.floor(cell.beats/2);if(!first)return;const second={...cell,id:`${cell.bar}:${cell.beat+first}`,beat:cell.beat+first,beats:cell.beats-first,locked:false};commit({...project,cells:project.cells.flatMap(c=>c.id===cell.id?[{...c,beats:first,locked:false},second]:[c])},'Split chord. Select either half to change it.');};
+ const merge=()=>{const first={...cell,id:`${cell.bar}:0`,beat:0,beats:4,locked:false};commit({...project,cells:[...project.cells.filter(c=>c.bar!==cell.bar),first].sort((a,b)=>a.bar-b.bar||a.beat-b.beat)},'One chord across this bar.');setSelected(first.id);};
+ const alternatives=useMemo(()=>{const pool:ChordQuality[]=cell.chord.quality.startsWith('min')?['min7','min9','min69','minMaj7']:cell.chord.quality.startsWith('dom')?['dom13','dom7sus','dom7b9','dom7alt']:cell.chord.quality.startsWith('maj')?['maj7','maj9','maj69','maj9#11']:['halfDim7','dim7','min7'];return pool;},[cell]);
+ const displayed=notes.filter(v=>v.beat>=range[0]*4&&v.beat<range[1]*4),minPitch=Math.min(48,...displayed.map(v=>v.midi))-1,maxPitch=Math.max(77,...displayed.map(v=>v.midi))+1,rowH=12,rollHeight=(maxPitch-minPitch+1)*rowH,rollWidth=Math.max(600,(range[1]-range[0])*zoom*36);
+ return <div className="studio">
+  <header className="topbar"><div className="brand"><span className="brand-icon"><Icon name="note"/></span><div><strong>Jazz Progression Studio</strong><span>PRODUCER EDITION <b>v{APP_VERSION}</b></span></div></div><nav><button onClick={()=>download(JSON.stringify(project,null,2),'application/json',`studio-${s.key}-${s.bpm}.json`)}><Icon name="save"/><span>Save project</span></button><button onClick={()=>upload.current?.click()}><Icon name="folder"/><span>Open</span></button><button aria-label="Help" onClick={()=>setHelp(v=>!v)}>?</button></nav><input ref={upload} type="file" accept=".json" hidden onChange={load}/></header>
+  <div className="transport"><div className="transport-buttons"><button className="play" onClick={()=>void play()} aria-label={playing||loading?'Stop playback':'Play progression'}><Icon name={playing||loading?'stop':'play'}/>{loading?'Cancel':playing?'Stop':'Play'}</button><button className="square" title="Undo" disabled={!history.length} onClick={undo}><Icon name="undo"/></button><button className="square" title="Redo" disabled={!future.length} onClick={redo}><Icon name="redo"/></button></div><div className="tempo"><input aria-label="Tempo BPM" type="number" min="40" max="300" value={s.bpm} onChange={e=>setting('bpm',Math.max(40,Math.min(300,+e.target.value||40)))}/><span>BPM</span></div><span className="meter">4/4</span><div className="beat-counter">{beat>=0?`${Math.floor(beat/4)+1}.${Math.floor(beat%4)+1}`:beat<-1?`IN ${beat+5}`:'1.1'}<span>BAR · BEAT</span></div><div className="transport-toggles"><Toggle label="Loop" value={s.loop} onChange={()=>setting('loop',!s.loop)}/><Toggle label="Click" value={s.click} onChange={()=>setting('click',!s.click)}/><Toggle label="Count-in" value={s.countIn} onChange={()=>setting('countIn',!s.countIn)}/></div><button className="midi-top" onClick={exportMidi}><Icon name="download"/>Export MIDI</button></div>
+  {help&&<div className="help"><b>Generate → shape → export.</b> Click a chord to edit or audition it. Lock a chord to keep its entire bar during regeneration. Set a bar range to work on a section. The piano roll and Performance MIDI use the exact same notes, timing, velocity and bass as playback. Block chords exports sustained voicings. Space plays/stops; Ctrl/⌘ Z undoes. Your session autosaves in this browser. <button onClick={()=>setHelp(false)}>Close</button></div>}
+  <main className="workspace"><aside className="sidebar"><div className="section-title"><span>01 / COMPOSE</span></div><div className="pair"><Field label="Key"><select value={s.key} onChange={e=>commit(transpose(project,e.target.value as KeyName),'Transposed existing notes and chords.')} >{KEYS.map(k=><option key={k}>{k}</option>)}</select></Field><Field label="Tonality"><select disabled={s.form==='rhythm'} value={s.mode} onChange={e=>harmonic({mode:e.target.value as Settings['mode']})}><option value="major">Major</option><option value="minor">Minor</option></select></Field></div><Field label="Harmonic language"><select value={s.style} onChange={e=>{const style=e.target.value as Settings['style'];harmonic({style,groove:style==='bebop'||style==='classic'?'swing':'pocket',swing:style==='bebop'||style==='classic'?62:56});}}>{Object.entries(STYLES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></Field><Field label="Form"><select value={s.form} onChange={e=>harmonic({form:e.target.value as Settings['form']})}><option value="loop">Producer phrase</option><option value="aaba">AABA · 32 bars</option><option value="blues">Jazz blues · 12 bars</option><option value="rhythm">Rhythm changes · 32 bars</option></select></Field>{s.form==='loop'&&<div className="segments" aria-label="Phrase length">{([4,8,16,32] as const).map(b=><button className={s.bars===b?'active':''} onClick={()=>harmonic({bars:b})} key={b}>{b}<small>bars</small></button>)}</div>}<Field label="Chord vocabulary"><select value={s.detail} onChange={e=>harmonic({detail:e.target.value as Settings['detail']})}><option value="triads">Triads</option><option value="sevenths">Sevenths</option><option value="extended">Extensions · 9 / 11 / 13</option></select></Field><Slider label="Chromatic color" value={s.color} onChange={v=>harmonic({color:v})}/><button className="generate" onClick={regenerate}><Icon name="refresh"/>Generate progression</button><p className="small muted">{project.cells.filter(c=>c.locked).length} chords locked · {project.cells.length} chords total</p>
+  <div className="section-title performance-title"><span>02 / PERFORM</span></div><Field label="Sound"><select value={s.sound} onChange={e=>setting('sound',e.target.value as Settings['sound'])}><option value="piano">Grand piano · sampled</option><option value="electric">Electric keys · FM</option><option value="guitar">Plucked keys · synth</option><option value="bass">Low keys · synth</option></select></Field><Field label="Rhythm"><select value={s.groove} onChange={e=>setting('groove',e.target.value as Settings['groove'])}><option value="held">Sustained chords</option><option value="pocket">Soul pocket</option><option value="swing">Jazz comping</option><option value="bossa">Bossa syncopation</option><option value="broken">Broken chords</option></select></Field><Field label="Voicing"><select value={s.voicing} onChange={e=>{const settings={...s,voicing:e.target.value as Settings['voicing']};commit({...project,settings,cells:revoice(project.cells,settings)},'Voicings updated. Locked notes kept.');}}><option value="compact">Compact</option><option value="open">Open / drop 2</option><option value="rootless">Rootless</option></select></Field><Field label="Separate bass"><select value={s.bass} onChange={e=>setting('bass',e.target.value as Settings['bass'])}><option value="off">Off</option><option value="roots">Root notes</option><option value="walking">Walking bass</option></select></Field>{['swing','pocket','broken'].includes(s.groove)&&<Slider label="Swing" value={s.swing} min={50} max={75} unit="%" onChange={v=>setting('swing',v)}/>}<Slider label="Humanize" value={s.human} unit="%" onChange={v=>setting('human',v)}/><Slider label="Chord roll" value={s.roll} max={100} unit=" ms" onChange={v=>setting('roll',v)}/></aside>
+  <section className="arrangement"><div className="arrangement-head"><div><span className="eyebrow">YOUR PROGRESSION</span><h1>{project.route}</h1><p>{s.key} {s.mode} <i/> {STYLES[s.style]} <i/> {n} bars</p></div><button className="subtle" onClick={()=>{const fresh=generate({...s,seed:freshSeed()});const cells=project.cells.map(c=>{if(c.locked||c.bar<range[0]||c.bar>=range[1])return c;return fresh.cells.find(v=>v.bar===c.bar&&v.beat===c.beat&&v.beats===c.beats)??c;});commit({...project,settings:{...s,seed:fresh.settings.seed},cells:revoice(cells,s)},'Selected range varied. Locks and bar divisions kept.');}}><Icon name="refresh"/>Vary range</button></div>
+  <div className="range-strip"><span>PLAY & EXPORT</span><label>From <select aria-label="First bar" value={range[0]} onChange={e=>{stop();setRange([+e.target.value,Math.max(+e.target.value+1,range[1])]);}}>{Array.from({length:n},(_,i)=><option key={i} value={i}>{i+1}</option>)}</select></label><label>to <select aria-label="Last bar" value={range[1]} onChange={e=>{stop();setRange([Math.min(range[0],+e.target.value-1),+e.target.value]);}}>{Array.from({length:n},(_,i)=><option key={i} value={i+1}>{i+1}</option>)}</select></label><button className="text-button" onClick={()=>{stop();setRange([0,n]);}}>Full form</button><span className="range-count">{range[1]-range[0]} bars</span></div>
+  <div className="chord-grid">{Array.from({length:n},(_,bar)=>{const cs=project.cells.filter(c=>c.bar===bar),active=beat>=bar*4&&beat<(bar+1)*4;return <div key={bar} className={`bar ${active?'playing':''} ${bar<range[0]||bar>=range[1]?'outside':''}`}><div className="bar-heading"><span>{String(bar+1).padStart(2,'0')}</span><b>{bar===0||project.cells.find(c=>c.bar===bar-1)?.section!==cs[0].section?cs[0].section:''}</b></div><div className="bar-chords">{cs.map(c=><button key={c.id} style={{flex:c.beats}} className={`chord ${cell.id===c.id?'selected':''}`} onClick={()=>{setSelected(c.id);if(!playing&&!loading)void hear(c.notes);}} aria-label={`Bar ${bar+1}, beat ${c.beat+1}: ${chordLabel(c,s)}${c.locked?', locked':''}`}><span>{chordLabel(c,s)}</span><small>{c.chord.roman} <em>{c.beats}b</em></small>{c.locked&&<span className="lock-marker"><Icon name="lock"/></span>}</button>)}</div><div className="bar-beats">{[0,1,2,3].map(b=><i className={Math.floor(beat)===bar*4+b?'lit':''} key={b}/>)}</div></div>;})}</div>
+  <a className="mobile-edit" href="#chord-editor">Edit {chordLabel(cell,s)} · notes, voicing & lock ↓</a>
+  <section className="roll-panel"><div className="roll-head"><div><b>Piano roll</b><span><i className="keys-dot"/> Keys <i className="bass-dot"/> Bass</span></div><label>Zoom <input aria-label="Piano roll zoom" type="range" min="2" max="8" value={zoom} onChange={e=>setZoom(+e.target.value)}/></label></div><div className="roll-scroll"><div className="piano-roll" style={{width:rollWidth+44,height:rollHeight+26}}><div className="roll-ruler">{Array.from({length:range[1]-range[0]},(_,i)=><span key={i} style={{left:44+i*rollWidth/(range[1]-range[0])}}>{range[0]+i+1}</span>)}</div>{Array.from({length:maxPitch-minPitch+1},(_,i)=>{const midi=maxPitch-i,black=[1,3,6,8,10].includes(midi%12);return <div className={`pitch-row ${black?'black':''}`} style={{top:26+i*rowH,height:rowH}} key={midi}><span>{midi%12===0?noteName(midi):''}</span></div>;})}{Array.from({length:(range[1]-range[0])*4+1},(_,i)=><div key={i} className={`gridline ${i%4===0?'measure':''}`} style={{left:44+i*rollWidth/((range[1]-range[0])*4),top:26,height:rollHeight}}/>)}{displayed.map((v,i)=><button aria-label={`${noteName(v.midi)}, ${v.track}, bar ${Math.floor(v.beat/4)+1}`} title={`${noteName(v.midi)} · velocity ${Math.round(v.velocity*127)}`} className={`midi-note ${v.track} ${v.cellId===cell.id?'chosen':''}`} key={i} onClick={()=>setSelected(v.cellId)} style={{left:44+(v.beat-range[0]*4)/((range[1]-range[0])*4)*rollWidth,top:27+(maxPitch-v.midi)*rowH,width:Math.max(3,v.duration/((range[1]-range[0])*4)*rollWidth),height:rowH-2,opacity:.5+v.velocity*.5}}/>)}{beat>=range[0]*4&&beat<range[1]*4&&<div className="playhead" style={{left:44+(beat-range[0]*4)/((range[1]-range[0])*4)*rollWidth,height:rollHeight+26}}/>}</div></div><div className="roll-foot">{notes.length} notes <span>Timing, voicings and velocity match Performance MIDI.</span></div></section>
+  <section className="export-panel"><div><span className="eyebrow">03 / TAKE IT TO YOUR DAW</span><h2>Keep the performance.</h2><p>Tempo, chord markers, separate tracks.<br/>The selected {range[1]-range[0]} bars start at 1.1.</p></div><div className="export-controls"><Field label="MIDI content"><select value={exportMode} onChange={e=>setExportMode(e.target.value as typeof exportMode)}><option value="performance">Performance · as heard</option><option value="blocks">Block chords · on grid</option></select></Field><Field label="Tracks"><select value={tracks} onChange={e=>setTracks(e.target.value as typeof tracks)}><option value="all">Keys + bass</option><option value="chords">Keys only</option><option value="bass">Bass only</option></select></Field><button className="export-button" onClick={exportMidi}><Icon name="download"/>Download .mid</button><button className="text-button" onClick={()=>chart.current?.toBlob(blob=>{if(blob)download(blob,'image/png','chord-chart.png');})}>Save chart PNG</button></div></section>
+  </section>
+  <aside className="inspector" id="chord-editor"><div className="section-title"><span>CHORD EDITOR</span><span>{cell.bar+1}.{cell.beat+1}</span></div><div className="selected-chord"><h2>{chordLabel(cell,s)}</h2><p>{cell.chord.roman} · {cell.beats} beats</p></div><div className="inspector-actions"><button onClick={()=>void hear()}><Icon name="play"/>Audition</button><button aria-pressed={cell.locked} className={cell.locked?'active':''} onClick={()=>changeCell(c=>({...c,locked:!c.locked}),cell.locked?'Unlocked.':'Locked. This bar will survive regeneration.')}><Icon name={cell.locked?'lock':'unlock'}/>{cell.locked?'Locked':'Lock'}</button></div><div className="pair"><Field label="Root"><select value={cell.chord.rootName in PC?PC[cell.chord.rootName]:cell.chord.rootPc} onChange={e=>quality(KEYS[+e.target.value],cell.chord.quality)}>{KEYS.map((k,i)=><option key={k} value={i}>{k}</option>)}</select></Field><Field label="Bass note"><select value={cell.bassPc} onChange={e=>changeCell(c=>({...c,bassPc:+e.target.value}))}>{KEYS.map((k,i)=><option key={k} value={i}>{k}</option>)}</select></Field></div><Field label="Chord quality"><select value={cell.chord.quality} onChange={e=>quality(cell.chord.rootName,e.target.value as ChordQuality)}>{Object.keys(INTERVALS).filter(q=>!['domTriad','halfDimTriad'].includes(q)).map(q=><option key={q} value={q}>{QUALITY_LABELS[q as ChordQuality]}</option>)}</select></Field><p className="label">Try another color</p><div className="alternatives">{alternatives.map(q=><button key={q} className={cell.chord.quality===q?'active':''} onClick={()=>quality(cell.chord.rootName,q)}>{cell.chord.rootName}{QUALITY_LABELS[q]}</button>)}</div><div className="divider"/><p className="label">Voiced notes <span>{cell.notes.length}</span></p><div className="note-editor">{cell.notes.map((pitch,i)=><div key={i}><button aria-label={`Lower ${noteName(pitch)} a semitone`} disabled={pitch<=24||cell.notes.includes(pitch-1)} onClick={()=>changeCell(c=>({...c,notes:c.notes.map((v,j)=>j===i?v-1:v).sort((a,b)=>a-b)}))}>−</button><button className="note-audition" onClick={()=>void hear([pitch])}>{noteName(pitch)}</button><button aria-label={`Raise ${noteName(pitch)} a semitone`} disabled={pitch>=96||cell.notes.includes(pitch+1)} onClick={()=>changeCell(c=>({...c,notes:c.notes.map((v,j)=>j===i?v+1:v).sort((a,b)=>a-b)}))}>+</button></div>)}</div><p className="small muted">Note edits change the voicing; the chord label stays as your harmonic reference.</p><div className="pair buttons"><button onClick={()=>inversion(false)} disabled={cell.notes.at(-1)!-12<24}>Invert ↓</button><button onClick={()=>inversion(true)} disabled={cell.notes[0]+12>96}>Invert ↑</button><button disabled={Math.min(...cell.notes)<36} onClick={()=>changeCell(c=>({...c,notes:c.notes.map(v=>v-12)}))}>Octave −</button><button disabled={Math.max(...cell.notes)>84} onClick={()=>changeCell(c=>({...c,notes:c.notes.map(v=>v+12)}))}>Octave +</button></div><div className="divider"/><p className="label">Harmonic rhythm</p><div className="pair buttons"><button disabled={cell.beats<2} onClick={split}>Split chord</button><button disabled={cell.beats===4} onClick={merge}>Fill bar</button></div><button className="reset-voicing" onClick={()=>{const cells=revoice(project.cells.map(c=>c.id===cell.id?{...c,locked:false}:c),s);changeCell(()=>cells.find(c=>c.id===cell.id)!,'Voicing restored.');}}>Restore automatic voicing</button><p className="small muted">Lock after editing to preserve your notes. Regeneration keeps the whole locked bar.</p></aside></main>
+  <footer><span role="status" aria-live="polite">{status}</span><button className="text-button" onClick={()=>setHelp(v=>!v)}>Help & shortcuts</button></footer><div className="credits">Piano: Salamander Grand Piano by <a href="https://github.com/sfzinstruments/SalamanderGrandPiano" target="_blank" rel="noreferrer">Alexander Holm</a> · <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noreferrer">CC BY 3.0</a> · MP3 subset via Tone.js. <span>Original phrase recipes; no AI model or copied song charts.</span></div><canvas ref={chart} hidden/>
+ </div>;
 }
