@@ -70,11 +70,11 @@ function candidates(chord:ParsedChord,style:Settings['voicing']):number[][]{
  for(let rotation=0;rotation<pcs.length;rotation++)for(let octave=3;octave<=5;octave++){
   let notes=Array.from({length:pcs.length},(_,i)=>pcs[(i+rotation)%pcs.length]+12*(octave+(i+rotation>=pcs.length?1:0)));
   if(style==='open'&&notes.length>=4){notes[notes.length-2]-=12;notes.sort((a,b)=>a-b);}
-  if(notes[0]>=48&&notes.at(-1)!<=84&&notes.at(-1)!-notes[0]<=28)out.push(notes);
+  if(notes[0]>=48&&notes[notes.length-1]!<=84&&notes[notes.length-1]!-notes[0]<=28)out.push(notes);
  }
  return out;
 }
-function cost(a:number[],b:number[]){let n=Math.min(a.length,b.length),c=Math.abs(a.at(-1)!-b.at(-1)!)*1.3;for(let i=0;i<n;i++)c+=Math.abs(a[i]-b[i]);return c+Math.abs(a.length-b.length)*3;}
+function cost(a:number[],b:number[]){let n=Math.min(a.length,b.length),c=Math.abs(a[a.length-1]!-b[b.length-1]!)*1.3;for(let i=0;i<n;i++)c+=Math.abs(a[i]-b[i]);return c+Math.abs(a.length-b.length)*3;}
 export function revoice(cells:Cell[],s:Settings):Cell[]{
  if(!cells.length)return [];
  const options=cells.map(c=>c.locked?[c.notes]:candidates(c.chord,s.voicing));
@@ -85,7 +85,7 @@ export function revoice(cells:Cell[],s:Settings):Cell[]{
  for(let i=1;i<options.length;i++){
   const next=options[i].map(v=>{let bi=0,bc=Infinity;options[i-1].forEach((p,j)=>{const c=costs[j]+cost(p,v)+Math.abs(v.reduce((a,b)=>a+b,0)/v.length-65)*.12;if(c<bc){bc=c;bi=j;}});return {bc,bi};});parents[i]=next.map(v=>v.bi);costs=next.map(v=>v.bc);
  }
- costs.forEach((c,j)=>{const total=c+cost(options.at(-1)![j],first)*.7;if(total<bestCost){bestCost=total;let k=j;const path:number[][]=[];for(let i=options.length-1;i>=0;i--){path[i]=options[i][k];k=parents[i]?.[k]??0;}best=path;}});
+ costs.forEach((c,j)=>{const total=c+cost(options[options.length-1]![j],first)*.7;if(total<bestCost){bestCost=total;let k=j;const path:number[][]=[];for(let i=options.length-1;i>=0;i--){path[i]=options[i][k];k=parents[i]?.[k]??0;}best=path;}});
  }
  return cells.map((c,i)=>({...c,notes:best[i]}));
 }

@@ -29,3 +29,10 @@ The session autosaves in this browser. Save/Open uses portable, validated v6 JSO
 ## Development and checks
 
 Node 22, `npm ci`, `npm test`, `npm run build`. Existing GitHub Pages workflow deploys main. The v6 tests cover all 12 keys, five languages, two modes and four forms; voicing pitch classes; locked edits; transposition; malformed projects; timing boundaries; and decoded MIDI equality against the source performance for all five grooves and three bass modes. A successful test run does not substitute for subjective listening or a real DAW import audition.
+
+
+## Publishing reliability (6.0.1)
+
+The repository has two active GitHub Pages publishing paths. The branch publisher previously served the development `index.html`, which referenced `/src/main.tsx` and produced a blank page. `studio.html` is now the Vite source entry. The root `index.html` opens the committed compiled `site/` directory, while Actions publishes identical compiled contents from `dist/`. `npm run build` refreshes `site/` and verifies both entry points, referenced JavaScript/CSS and piano files. Include regenerated `site/` files in source updates. `npm run verify:pages` detects raw-TypeScript entry points and stale/missing build output.
+
+Startup now has an HTML loading/error fallback and a React error boundary. Safari 14 is an explicit compilation target; active application code does not require Array.at. Browser preview was unavailable in the repair environment, so release verification consists of production-file checks, automated tests and HTTP verification of the live deployment, not a claim of Safari device testing.
