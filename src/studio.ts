@@ -49,8 +49,23 @@ function recipes(s:Settings){return s.mode==='minor'?MINOR:s.style==='modern'?MO
 function tokens(s:Settings):{bars:string[];sections:string[];name:string}{
  const r=random(s.seed), f=pick(recipes(s),r), n=barCount(s), tonic=s.mode==='minor'?'i9':'I6/9';
  let a=[...f.a], response=[...f.response], bridge=[...f.bridge];
- if(s.form==='blues')return {name:'Jazz blues · call, response, turnaround',sections:Array.from({length:12},(_,i)=>i<4?'A':i<8?'B':'C'),bars:s.mode==='minor'?['i9','iv9','i9','i9','iv9','iv9','i9','VI7','iiø7','V7b9','i9,VI7','iiø7,V7b9']:['I13','IV9','I13','ii7/IV,V7/IV','IV9','#iv°7','I6/9','VI7b9','ii9','V13','iii7,VI7','ii9,V13']};
- if(s.form==='rhythm') {a=['I6/9,VI7','ii9,V13','iii7,VI7','ii9,V13'];response=['I7','IVΔ9,#iv°7','I6/9,VI7','ii9,V13'];bridge=['III7','III7','VI7','VI7'];const bars=[...a,...response,...a,...response,...bridge,'II7','II7','V13','V13',...a,...response];return {name:'Rhythm changes · AABA',sections:bars.map((_,i)=>i<8?'A1':i<16?'A2':i<24?'B':'A3'),bars};}
+ if(s.form==='blues'){
+  const minor=s.mode==='minor';
+  const bars=minor?['i9','iv9','i9','i9','iv9','iv9','i9','VI7','iiø7','V7b9','i9,VI7','iiø7,V7b9']:['I13','IV9','I13','ii7/IV,V7/IV','IV9','#iv°7','I6/9','VI7b9','ii9','V13','iii7,VI7','ii9,V13'];
+  bars[1]=pick(minor?['iv9','i9','iiø7/iv,V7b9/iv']:['IV9','I13','ii7/IV,V7/IV'],r);
+  bars[3]=pick(minor?['i9','iiø7/iv,V7b9/iv','i7']:['I13','ii7/IV,V7/IV','I7'],r);
+  bars[5]=pick(minor?['iv9','iv9,VII13','iiø7,V7b9']:['IV9','#iv°7','iv9,bVII13'],r);
+  bars[7]=pick(minor?['VI7','iiø7','i9,VI7']:['VI7b9','iii7,VI7','ii9,V13'],r);
+  bars[10]=pick(minor?['i9','i9,VI7','IIIΔ9,VI7']:['I6/9','I6/9,VI7','iii7,VI7'],r);
+  return {name:minor?'Minor jazz blues':'Jazz blues',sections:bars.map((_,i)=>i<4?'A':i<8?'B':'C'),bars};
+ }
+ if(s.form==='rhythm') {
+  const minor=s.mode==='minor';
+  a=minor?pick([['i9,VI7','iiø7,V7b9','i9,VI7','iiø7,V7alt'],['i9','iiø7,V7b9','IIIΔ9,VI7','iiø7,V7b9'],['i9,V7/iv','iv9,VII13','IIIΔ9,VI7','iiø7,V7b9']],r):pick([['I6/9,VI7','ii9,V13','iii7,VI7','ii9,V13'],['I6/9','ii9,V13','IΔ9,VI7','ii9,V7alt'],['iii7,VI7','ii9,V13','I6/9,VI7','ii9,V13']],r);
+  response=minor?pick([['i7','iv9','i9,VI7','iiø7,V7b9'],['iiø7/iv,V7b9/iv','iv9,VII13','IIIΔ9,VI7','iiø7,V7alt']],r):pick([['I7','IVΔ9,#iv°7','I6/9,VI7','ii9,V13'],['ii7/IV,V7/IV','IVΔ9,iv9','I6/9,VI7','ii9,V7alt']],r);
+  bridge=minor?pick([['III7','III7','VI7','VI7','II7','II7','V7b9','V7alt'],['ii7/VI','V7/VI','VIΔ9','VI7','iiø7','II7','V7sus','V7b9']],r):pick([['III7','III7','VI7','VI7','II7','II7','V13','V13'],['ii7/VI','V7/VI','ii7/II','V7/II','ii7/V','V7/V','ii9','V13']],r);
+  const bars=[...a,...response,...a,...response,...bridge,...a,...response];return {name:minor?'Rhythm changes · minor variation':'Rhythm changes · AABA',sections:bars.map((_,i)=>i<8?'A1':i<16?'A2':i<24?'B':'A3'),bars};
+ }
  let bars:string[], sections:string[];
  if(s.form==='aaba') {const answer=[...response];answer[3]=tonic;bars=[...a,...response,...a,...answer,...bridge,...f.bridge.slice(0,2),s.mode==='minor'?'iiø7':'ii9',s.mode==='minor'?'V7b9':'V13',...a,...answer];sections=bars.map((_,i)=>i<8?'A1':i<16?'A2':i<24?'B':'A3');}
  else if(n===4){bars=a;sections=bars.map(()=>'A');}

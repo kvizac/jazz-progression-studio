@@ -71,3 +71,43 @@ note/timing/velocity parity and selected-range lengths. Style matrices check
 repeatability, note bounds, monophonic bass, saved-session migration and independent
 parts. The compiled `site/` directory must still be committed on every release so
 both existing Pages publishing paths serve compiled JavaScript.
+
+### 6.2 — Composition workspace and reliable generation
+
+The composition surface now puts key, always-available Major/Minor buttons,
+Generate and its status directly above the chart. Compose, Perform and Ideas
+panels separate harmonic choices, player controls and three browser-local idea
+slots. The chart exposes bar locks; changed bars flash briefly. An entirely
+locked form explains why generation is blocked and offers Unlock all. Chords
+can be swapped by drag/drop or Move left/right, with their positions and lengths
+preserved. Suggested replacements can be auditioned before applying. Keys and
+bass can be muted independently for preview; MIDI track selection stays explicit.
+Labels and sliders include hover/focus/tap help. Primary actions also have native
+hover descriptions. Ideas retain complete projects, including performance settings;
+Recall is undoable, and Replace explicitly overwrites a slot.
+
+Fixed causes of the reported controls: Rhythm changes no longer disables tonality
+or forces major. It has a separately labeled minor reinterpretation. Blues and
+rhythm forms now choose original phrase variants instead of returning an invariant
+chart. Generate compares musical signatures, retries within the form grammar and,
+for an otherwise invariant narrow unlocked range, can supply a local dominant
+approach. Fully locked ranges return a truthful explanation without a fake success.
+Stopping before audio initialization no longer touches the audio transport, so
+composition controls work before the first Play gesture.
+
+Product review (official pages, 10 September 2026):
+- [Scaler 3](https://scalermusic.com/products/scaler-3/): chord suggestions,
+  drag/drop composition, sketchpad comparison and independent audition controls
+  informed the suggestion panel, chord swapping, A/B/C idea slots and preview mutes.
+- [Captain Chords](https://mixedinkey.com/captain-plugins/captain-chords/): visible
+  key/scale choices, inversions and genre rhythm browsing informed the separation
+  of Compose and Perform and the persistent key/tonality strip.
+- [ChordChord](https://chordchord.com/): reviewed its public generator presentation;
+  no claims of feature parity or copying of its model or private implementation.
+
+Validation includes repeated generation across all forms, both tonalities and
+triad/extended vocabularies, minor/major switching, lock preservation, single-bar
+variation, swapping and suggestions. Server-rendered UI checks verify enabled
+Major/Minor controls on a restored rhythm-changes project, the all-locked message,
+associated field labels and help. Existing MIDI round-trip tests remain in place.
+These are automated source/render tests, not a claim of device-level Safari QA.

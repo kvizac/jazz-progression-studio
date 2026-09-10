@@ -1,12 +1,13 @@
+import { Field,Slider } from './ui';
 import type { Settings } from './studio';
 import { BASSES, GROOVES, PERFORMANCE_PRESETS } from './performanceSettings';
 type Props={s:Settings;patch:(p:Partial<Settings>)=>void};
 export function PerformanceControls({s,patch}:Props){
- const slider=(key:keyof Settings,label:string,min=0,max=100,unit='%')=><label className="slider" key={key}><span>{label}<b>{s[key]}{unit}</b></span><input type="range" min={min} max={max} value={s[key] as number} onChange={e=>patch({[key]:+e.target.value})}/></label>;
- const select=(key:keyof Settings,label:string,options:Record<string,string>)=><label className="field"><span>{label}</span><select value={String(s[key])} onChange={e=>patch({[key]:['arpRate','arpOctaves'].includes(key)?+e.target.value:e.target.value})}>{Object.entries(options).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>;
+ const slider=(key:keyof Settings,label:string,min=0,max=100,unit='%')=><Slider key={key} label={label} value={s[key] as number} min={min} max={max} unit={unit} onChange={v=>patch({[key]:v})}/>;
+ const select=(key:keyof Settings,label:string,options:Record<string,string>)=><Field label={label}><select value={String(s[key])} onChange={e=>patch({[key]:['arpRate','arpOctaves'].includes(key)?+e.target.value:e.target.value})}>{Object.entries(options).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></Field>;
  const preset=PERFORMANCE_PRESETS.findIndex(p=>Object.entries(p.settings).every(([k,v])=>s[k as keyof Settings]===v));
  return <div className="performance-controls">
- <label className="field"><span>Band performance</span><select value={preset<0?'custom':preset} onChange={e=>{if(e.target.value!=='custom')patch(PERFORMANCE_PRESETS[+e.target.value].settings);}}><option value="custom" disabled>Custom performance</option>{PERFORMANCE_PRESETS.map((p,i)=><option value={i} key={p.name}>{p.name}</option>)}</select></label>
+ <Field label="Band performance"><select value={preset<0?'custom':preset} onChange={e=>{if(e.target.value!=='custom')patch(PERFORMANCE_PRESETS[+e.target.value].settings);}}><option value="custom" disabled>Custom performance</option>{PERFORMANCE_PRESETS.map((p,i)=><option value={i} key={p.name}>{p.name}</option>)}</select></Field>
  <p className="performance-hint">{preset<0?'Your own combination of keyboard and bass phrasing.':PERFORMANCE_PRESETS[preset].hint}</p>
  <p className="performance-live">Tweak while playing · changes enter next bar.</p>
  <details open><summary>Keyboard rhythm</summary>
