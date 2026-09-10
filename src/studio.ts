@@ -1,11 +1,14 @@
+import { EXPRESSION, GROOVES, BASSES } from './performanceSettings';
+import type { Expression } from './performanceSettings';
+import { renderPerformance } from './studioPerformance';
 import { parseRomanToken, PC, qualitySuffix, spellPc } from './theory';
 import type { ParsedChord, ChordQuality, KeyName, HarmonyStyle } from './types';
 
-export type Settings = { key:KeyName; mode:'major'|'minor'; style:HarmonyStyle; form:'loop'|'aaba'|'blues'|'rhythm'; bars:4|8|16|32; bpm:number; color:number; detail:'triads'|'sevenths'|'extended'; groove:'held'|'pocket'|'swing'|'bossa'|'broken'; swing:number; human:number; roll:number; bass:'off'|'roots'|'walking'; voicing:'compact'|'open'|'rootless'; sound:'piano'|'electric'|'guitar'|'bass'; loop:boolean; click:boolean; countIn:boolean; seed:number; };
+export type Settings = Expression & { key:KeyName; mode:'major'|'minor'; style:HarmonyStyle; form:'loop'|'aaba'|'blues'|'rhythm'; bars:4|8|16|32; bpm:number; color:number; detail:'triads'|'sevenths'|'extended'; groove:keyof typeof GROOVES; swing:number; human:number; roll:number; bass:keyof typeof BASSES; voicing:'compact'|'open'|'rootless'; sound:'piano'|'electric'|'guitar'|'bass'; loop:boolean; click:boolean; countIn:boolean; seed:number; };
 export type Cell = { id:string; bar:number; beat:number; beats:number; chord:ParsedChord; bassPc:number; notes:number[]; locked:boolean; section:string; };
 export type Project = { version:6; settings:Settings; cells:Cell[]; route:string; };
 export type Note = { midi:number; beat:number; duration:number; velocity:number; track:'chords'|'bass'; cellId:string; };
-export const DEFAULT:Settings={key:'F',mode:'major',style:'neosoul',form:'loop',bars:8,bpm:82,color:45,detail:'extended',groove:'pocket',swing:56,human:18,roll:12,bass:'roots',voicing:'open',sound:'piano',loop:true,click:false,countIn:false,seed:62719};
+export const DEFAULT:Settings={...EXPRESSION,key:'F',mode:'major',style:'neosoul',form:'loop',bars:8,bpm:82,color:45,detail:'extended',groove:'pocket',swing:56,human:18,roll:12,bass:'roots',voicing:'open',sound:'piano',loop:true,click:false,countIn:false,seed:62719};
 export const KEYS:KeyName[]=['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
 export const STYLES:Record<HarmonyStyle,string>={classic:'Jazz',bebop:'Bebop',modern:'Modern jazz',neosoul:'Neo-soul',rnb:'R&B / Soul'};
 export const INTERVALS:Record<ChordQuality,number[]>={maj:[0,4,7],min:[0,3,7],domTriad:[0,4,7],halfDimTriad:[0,3,6],dimTriad:[0,3,6],maj7:[0,4,7,11],maj6:[0,4,7,9],maj9:[0,4,7,11,14],'maj9#11':[0,4,11,14,18],maj69:[0,4,7,9,14],min7:[0,3,7,10],min9:[0,3,7,10,14],minMaj7:[0,3,7,11],min69:[0,3,7,9,14],dom7:[0,4,7,10],dom9:[0,4,7,10,14],dom13:[0,4,10,14,21],dom7b9:[0,4,7,10,13],'dom7#9':[0,4,7,10,15],'dom7#11':[0,4,10,14,18],dom7alt:[0,4,8,10,13],dom7sus:[0,5,7,10,14],halfDim7:[0,3,6,10],dim7:[0,3,6,9]};
@@ -113,44 +116,18 @@ export function transpose(p:Project,key:KeyName):Project{
 export function makeChord(root:string,q:ChordQuality):ParsedChord{const match=root.match(/^([A-G])([b#]*)$/);if(!match)throw Error('Unknown root');const rootPc=(PC[match[1]]+[...match[2]].reduce((n,a)=>n+(a==='#'?1:-1),0)+24)%12;return {rootPc,rootName:root,quality:q,symbol:root+qualitySuffix(q),roman:'Custom',token:root+qualitySuffix(q)};}
 export function noteName(n:number){return `${['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B'][((n%12)+12)%12]}${Math.floor(n/12)-1}`;}
 export function chordLabel(c:Cell,s:Settings){return c.chord.symbol+(c.bassPc!==c.chord.rootPc?'/'+spellPc(c.bassPc,s.key):'');}
-export function performance(p:Project,mode:'performance'|'blocks'='performance'):Note[]{
- const s=p.settings, r=random(s.seed+919),out:Note[]=[],end=barCount(s)*4, secToBeat=s.bpm/60;
- const swing=(b:number)=>Math.floor(b)+(b%1<.5?b%1*(s.swing/50):(s.swing/100)+(b%1-.5)*((100-s.swing)/50));
- for(let ci=0;ci<p.cells.length;ci++){
- const c=p.cells[ci],base=c.bar*4+c.beat,stop=base+c.beats;
- let hits:number[]=[0];
- if(mode!=='blocks'){
-  if(s.groove==='pocket')hits=c.bar%2===0?[0,1.5,3.5]:[.5,2,3.5];
-  if(s.groove==='swing')hits=c.bar%2===0?[0,1.5,3]:[.5,2.5];
-  if(s.groove==='bossa')hits=c.bar%2===0?[0,1.5,3]:[0,1,2.5];
-  if(s.groove==='broken')hits=Array.from({length:Math.ceil(c.beats*2)},(_,i)=>i*.5);
- }
- hits=hits.filter(b=>b<c.beats);if(!hits.length)hits=[0];
- hits.forEach((h,hi)=>{
-  let at=base+h;if(mode!=='blocks'&&(s.groove==='swing'||s.groove==='pocket'||s.groove==='broken'))at=swing(at);
-  const next=hi+1<hits.length?base+hits[hi+1]:stop;
-  const duration=mode==='blocks'||s.groove==='held'?c.beats*.96:s.groove==='broken'?.46:Math.min(.9,next-(base+h));
-  const notes=s.groove==='broken'&&mode!=='blocks'?[c.notes[hi%c.notes.length]]:c.notes;
-  const delay=mode==='blocks'?0:((r()-.35)*s.human*.0007)*secToBeat;
-  notes.forEach((midi,ni)=>{const beat=Math.max(base,Math.min(stop-.04,at+delay+(mode==='blocks'?0:ni*s.roll*.001*secToBeat/Math.max(1,notes.length-1))));out.push({midi,beat,duration:Math.max(.02,Math.min(duration,stop-beat-.01)),velocity:mode==='blocks'?.75:Math.max(.25,Math.min(.95,.69+(ni===notes.length-1?.06:0)+(r()-.5)*s.human/160-(hi%2?.06:0))),track:'chords',cellId:c.id});});
- });
- if(s.bass!=='off'){
- const root=36+c.bassPc, next=p.cells[(ci+1)%p.cells.length];
- const count=s.bass==='walking'?Math.ceil(c.beats):1;
- for(let i=0;i<count;i++){let midi=root;if(i>0){const tones=INTERVALS[c.chord.quality];midi=i===count-1?36+next.bassPc+(next.bassPc>=c.bassPc?-1:1):root+tones[i%Math.min(3,tones.length)];while(midi>52)midi-=12;while(midi<28)midi+=12;}out.push({midi,beat:base+i,duration:s.bass==='walking'?.86:c.beats*.93,velocity:.72,track:'bass',cellId:c.id});}
- }
- }
- return out.filter(n=>n.beat<end).sort((a,b)=>a.beat-b.beat||a.midi-b.midi);
-}
+export const performance=renderPerformance;
 export function validateProject(x:unknown):Project{
  const p=x as Project;if(!p||p.version!==6||!p.settings||!Array.isArray(p.cells))throw Error('Choose a Studio v6 project file.');
- const s=p.settings;
+ const s={...EXPRESSION,...p.settings};
  if(!KEYS.includes(s.key)||!['major','minor'].includes(s.mode)||!Object.keys(STYLES).includes(s.style)||!['loop','aaba','blues','rhythm'].includes(s.form)||![4,8,16,32].includes(s.bars))throw Error('Invalid project settings.');
  const ranges:[number,number,number][]=[[s.bpm,40,300],[s.color,0,100],[s.swing,50,75],[s.human,0,100],[s.roll,0,100],[s.seed,0,4294967295]];
- if(ranges.some(([v,l,h])=>!Number.isFinite(v)||v<l||v>h)||!['compact','open','rootless'].includes(s.voicing)||!['off','roots','walking'].includes(s.bass)||!['piano','electric','guitar','bass'].includes(s.sound)||!['held','pocket','swing','bossa','broken'].includes(s.groove)||!['triads','sevenths','extended'].includes(s.detail)||['loop','click','countIn'].some(k=>typeof s[k as keyof Settings]!=='boolean'))throw Error('Invalid performance settings.');
+ if(ranges.some(([v,l,h])=>!Number.isFinite(v)||v<l||v>h)||!['compact','open','rootless'].includes(s.voicing)||!Object.keys(BASSES).includes(s.bass)||!['piano','electric','guitar','bass'].includes(s.sound)||!Object.keys(GROOVES).includes(s.groove)||!['triads','sevenths','extended'].includes(s.detail)||['loop','click','countIn'].some(k=>typeof s[k as keyof Settings]!=='boolean'))throw Error('Invalid performance settings.');
+ const percentages=['density','syncopation','variation','gate','dynamics','arp','bassDensity','bassGate','bassVariation','bassApproach','bassOctaves','bassDynamics'] as const;
+ if(percentages.some(k=>!Number.isFinite(s[k])||s[k]<0||s[k]>100)||[s.pocket,s.bassPocket].some(v=>!Number.isFinite(v)||v< -30||v>30)||![1,2,4].includes(s.arpRate)||![1,2].includes(s.arpOctaves)||!['up','down','pendulum','outside'].includes(s.arpPattern)||!['up','down','alternate'].includes(s.rollDirection))throw Error('Invalid expression settings.');
  if(p.cells.length<4||p.cells.length>128)throw Error('Invalid chord count.');
  const ids=new Set<string>();
  for(let bar=0;bar<barCount(s);bar++){let beat=0;const cells=p.cells.filter(c=>c.bar===bar).sort((a,b)=>a.beat-b.beat);if(!cells.length)throw Error('Missing bar.');for(const c of cells){if(c.beat!==beat||![1,2,3,4].includes(c.beats)||!c.chord||!INTERVALS[c.chord.quality]||!Number.isInteger(c.chord.rootPc)||c.chord.rootPc<0||c.chord.rootPc>11||!Number.isInteger(c.bassPc)||c.bassPc<0||c.bassPc>11||!Array.isArray(c.notes)||c.notes.length<1||c.notes.length>8||c.notes.some(n=>!Number.isInteger(n)||n<24||n>96)||new Set(c.notes).size!==c.notes.length||typeof c.id!=='string'||ids.has(c.id)||typeof c.locked!=='boolean'||typeof c.section!=='string')throw Error('Invalid chord data.');ids.add(c.id);beat+=c.beats;}if(beat!==4)throw Error('Each bar must contain four beats.');}
  if(p.cells.some(c=>!Number.isInteger(c.bar)||c.bar<0||c.bar>=barCount(s)))throw Error('Invalid bar.');
- return {...p,route:typeof p.route==='string'?p.route.slice(0,100):'Imported progression',cells:[...p.cells].map(c=>({...c,section:c.section.slice(0,8),chord:{...c.chord,rootName:spellPc(c.chord.rootPc,s.key),symbol:spellPc(c.chord.rootPc,s.key)+qualitySuffix(c.chord.quality),roman:typeof c.chord.roman==='string'?c.chord.roman.slice(0,20):'Custom'}})).sort((a,b)=>a.bar-b.bar||a.beat-b.beat)};
+ return {...p,settings:s,route:typeof p.route==='string'?p.route.slice(0,100):'Imported progression',cells:[...p.cells].map(c=>({...c,section:c.section.slice(0,8),chord:{...c.chord,rootName:spellPc(c.chord.rootPc,s.key),symbol:spellPc(c.chord.rootPc,s.key)+qualitySuffix(c.chord.quality),roman:typeof c.chord.roman==='string'?c.chord.roman.slice(0,20):'Custom'}})).sort((a,b)=>a.bar-b.bar||a.beat-b.beat)};
 }

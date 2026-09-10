@@ -31,12 +31,18 @@ function trigger(n:Note,sound:Settings['sound'],time:number,seconds:number){
 }
 export function stopAudio(){generation++;const t=Tone.getTransport();t.stop();t.cancel();t.position=0;piano?.releaseAll();electric?.releaseAll();guitar?.releaseAll();lowKeys?.releaseAll();bass?.triggerRelease();}
 export async function audition(notes:number[],s:Settings){const token=generation;await ready(s.sound);if(token!==generation)return;const now=Tone.now()+.03;notes.forEach((midi,i)=>trigger({midi,beat:0,duration:1,velocity:.76,track:'chords',cellId:''},s.sound,now+i*.003,.85));}
-export async function playProject(p:Project,notes:Note[],range:[number,number],onBeat:(b:number)=>void,onEnd:()=>void){
+export async function playProject(p:Project,notes:Note[],range:[number,number],onBeat:(b:number)=>void,onEnd:()=>void,liveNotes?:()=>Note[]){
  stopAudio();const token=generation;await ready(p.settings.sound);if(token!==generation)return false;
  const s=p.settings,t=Tone.getTransport(),start=range[0]*4,end=Math.min(range[1]*4,barCount(s)*4),length=end-start,spb=60/s.bpm,count=s.countIn?4:0;
  t.bpm.value=s.bpm;t.swing=0;t.timeSignature=4;t.loop=s.loop;t.loopStart=count*spb;t.loopEnd=(count+length)*spb;
  if(count)for(let b=0;b<4;b++)t.schedule(time=>{click!.triggerAttackRelease(b===0?1600:1000,.025,time,.7);Tone.getDraw().schedule(()=>onBeat(-4+b),time);},b*spb);
- for(const n of notes){if(n.beat<start||n.beat>=end)continue;t.schedule(time=>trigger(n,s.sound,time,Math.min(n.duration,end-n.beat)*spb),(n.beat-start+count)*spb);}
+ // Snapshot each bar, but trigger in small windows so Stop cancels promptly.
+ let currentNotes=notes;
+ for(let b=0;b<length;b+=.125)t.schedule(time=>{
+  if(b%4===0)currentNotes=liveNotes?liveNotes():notes;
+  const windowStart=start+b,windowEnd=Math.min(windowStart+.125,end);
+  for(const n of currentNotes){if(n.beat<windowStart||n.beat>=windowEnd)continue;trigger(n,s.sound,time+(n.beat-windowStart)*spb,Math.min(n.duration,end-n.beat)*spb);}
+ },(count+b)*spb);
  for(let b=0;b<length;b+=.25)t.schedule(time=>{if(s.click&&Number.isInteger(b))click!.triggerAttackRelease(b%4===0?1600:1000,.025,time,.6);Tone.getDraw().schedule(()=>{if(token===generation)onBeat(start+b);},time);},(count+b)*spb);
  if(!s.loop)t.schedule(time=>Tone.getDraw().schedule(()=>{if(token===generation){t.stop();onEnd();}},time),(count+length)*spb);
  t.start('+0.08');return true;

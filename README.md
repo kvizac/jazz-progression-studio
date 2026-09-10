@@ -36,3 +36,38 @@ Node 22, `npm ci`, `npm test`, `npm run build`. Existing GitHub Pages workflow d
 The repository has two active GitHub Pages publishing paths. The branch publisher previously served the development `index.html`, which referenced `/src/main.tsx` and produced a blank page. `studio.html` is now the Vite source entry. The root `index.html` opens the committed compiled `site/` directory, while Actions publishes identical compiled contents from `dist/`. `npm run build` refreshes `site/` and verifies both entry points, referenced JavaScript/CSS and piano files. Include regenerated `site/` files in source updates. `npm run verify:pages` detects raw-TypeScript entry points and stale/missing build output.
 
 Startup now has an HTML loading/error fallback and a React error boundary. Safari 14 is an explicit compilation target; active application code does not require Array.at. Browser preview was unavailable in the repair environment, so release verification consists of production-file checks, automated tests and HTTP verification of the live deployment, not a claim of Safari device testing.
+
+### 6.1 — Expressive keyboard and bass players
+
+The Band performance menu offers Neo-soul, Jazz trio, Ballad, Bossa, Funk,
+Gospel, Disco, Latin and Cinematic arpeggio starting points. These change the
+players without regenerating the harmony. Expand the control groups to adjust
+rhythmic density, syncopation, four-bar variation, note length, chord roll
+(0–100 ms, either direction or alternating), arpeggiated-chord probability,
+quarter/eighth/sixteenth rate, four shapes and one/two-octave register.
+Keyboard dynamics favor strong beats and the top voice. Timing has separate
+intentional push/lay-back and bounded random variation.
+
+Bass has sustained, walking, two-feel, soul, funk, bossa, disco and Latin modes.
+Independent sliders control density, articulation, fills, approaches, octaves,
+timing and dynamics. Approaches target the following chord, including the loop
+seam. Bass events are monophonic; repeated keyboard pitches do not overlap.
+Two-bar original motifs stay aligned to the measure when chords are split.
+Randomness is seeded and each part has its own random stream, so changing the
+keyboard doesn't rewrite the bass. Sustained styles intentionally remain sparse;
+walking prioritizes connected chord tones over octave accents.
+
+Performance controls can be adjusted while playing: the audio scheduler snapshots
+changes at the next bar. Stop/Play immediately auditions the whole revised phrase.
+Performance MIDI and the piano roll use the updated notes immediately, with the
+same tempo, track layout, velocity encoding and exact end-of-track padding as 6.0.1.
+Block MIDI remains on-grid. Older v6 projects acquire defaults for new controls.
+The bass preview is synthesized; use a bass instrument in your DAW for its own
+sampled articulations. No pitch-bend slides, physical string noises or sustain
+pedal messages are generated.
+
+Validation: performance presets round-trip through the MIDI decoder with exact
+note/timing/velocity parity and selected-range lengths. Style matrices check
+repeatability, note bounds, monophonic bass, saved-session migration and independent
+parts. The compiled `site/` directory must still be committed on every release so
+both existing Pages publishing paths serve compiled JavaScript.
