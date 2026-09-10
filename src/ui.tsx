@@ -2,13 +2,20 @@ import { cloneElement,isValidElement,useEffect,useId,useRef,useState } from 'rea
 import type { ReactNode,ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 export const HELP:Record<string,string>={
+ 'Left-hand style':'Auto uses light shell voicings with bass and roots/fifths without it. The right hand moves up when needed, except for locked chords. Off restores the original single-hand voicing.',
+ 'Left-hand activity':'Add occasional half-bar responses to the supporting part. Sustained styles remain sparse; the left hand follows each chord change.',
+ 'Left-hand level':'Set the left-hand MIDI velocities relative to the right hand. Zero silences it, including in Performance MIDI.',
+ 'Left-hand note length':'Short releases create space; longer notes smoothly support the right-hand phrase.',
+ 'Tremolo depth':'Control gentle amplitude movement on the electric-piano preview. Zero removes tremolo. MIDI exports notes, so use a tremolo effect in your DAW.',
+ 'Tremolo speed':'Electric-piano tremolo cycles per second. Four Hz gives a gentle shimmer. This affects the preview, not MIDI note timing.',
+
  Key:'Transpose the existing progression to another key. Your chord shapes and edits move together.',
  Tonality:'Choose major or minor in any form. New harmony follows this tonality; locked bars keep their existing chords.',
  'Harmonic language':'Choose the harmonic vocabulary: jazz turnarounds, modern colors or soul movement. Locked bars stay in place.',
  Form:'Choose a free phrase, a 32-bar AABA form, 12-bar jazz blues or rhythm changes. Each supports new variations and major or minor tonality.',
  'Chord vocabulary':'Triads have three tones; sevenths add harmonic identity; extensions add ninths, elevenths and thirteenths.',
  'Chromatic color':'More borrowed colors and altered dominants in producer phrases and AABA. Blues and rhythm changes use their own form-specific vocabulary.',
- Sound:'Choose the preview instrument. Grand piano loads real samples; the other sounds are synthesized. MIDI remains editable in your DAW.',
+ Sound:'Choose the preview instrument. Grand piano loads real samples; warm electric piano uses tine-style synthesis with tremolo. MIDI remains editable in your DAW.',
  Voicing:'Compact keeps notes close. Open/drop 2 spreads them. Rootless leaves space for the separate bass. Locked notes are preserved.',
  'Band performance':'Apply a matched keyboard and bass preset without replacing your chords. Adjust any slider to make it your own.',
  'Playing style':'Choose the keyboard rhythm. Motifs follow bar lines, even when a bar contains several chords.',

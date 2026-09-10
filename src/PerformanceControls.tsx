@@ -10,6 +10,8 @@ export function PerformanceControls({s,patch}:Props){
  <Field label="Band performance"><select value={preset<0?'custom':preset} onChange={e=>{if(e.target.value!=='custom')patch(PERFORMANCE_PRESETS[+e.target.value].settings);}}><option value="custom" disabled>Custom performance</option>{PERFORMANCE_PRESETS.map((p,i)=><option value={i} key={p.name}>{p.name}</option>)}</select></Field>
  <p className="performance-hint">{preset<0?'Your own combination of keyboard and bass phrasing.':PERFORMANCE_PRESETS[preset].hint}</p>
  <p className="performance-live">Tweak while playing · changes enter next bar.</p>
+ {s.sound==='electric'&&<details open><summary>Electric piano tone</summary>{slider('tremoloDepth','Tremolo depth')}{slider('tremoloRate','Tremolo speed',1,8,' Hz')}<p className="performance-hint">Warm tine-style electric piano. Tremolo is a preview effect; add tremolo to your electric-piano instrument in Ableton.</p></details>}
+ <details open><summary>Left hand</summary>{select('leftHand','Left-hand style',{auto:'Auto · follow the band',shells:'Shells · thirds & sevenths','root-fifth':'Root support · fifths / thirds',broken:'Broken shells',off:'Off'})}{s.leftHand!=='off'&&<>{slider('leftDensity','Left-hand activity')}{slider('leftLevel','Left-hand level')}{slider('leftGate','Left-hand note length')}<p className="performance-hint">A quieter, independent supporting part. Both hands export together on the Keys MIDI track. Locked right-hand notes keep their register.</p></>}</details>
  <details open><summary>Keyboard rhythm</summary>
  {select('groove','Playing style',GROOVES)}
  {slider('density','Density')}{slider('syncopation','Syncopation')}{slider('variation','Phrase variation')}{slider('gate','Note length')}
@@ -24,7 +26,7 @@ export function PerformanceControls({s,patch}:Props){
  <p className="performance-hint">Negative timing pushes ahead; positive timing sits behind. Strong beats and the top voice lead the dynamics.</p>
  </details>
  <details open><summary>Bass player</summary>
- {select('bass','Bass style',BASSES)}
+ <p className="performance-hint">Smooth electric bass guitar · sampled fingerstyle tone.</p>{select('bass','Bass style',BASSES)}
  {s.bass!=='off'&&<>{slider('bassDensity','Bass density')}{slider('bassGate','Bass note length')}{slider('bassVariation','Fills & variation')}
  <details><summary>Bass expression</summary>{slider('bassApproach','Approach notes')}{slider('bassOctaves','Octave accents')}{slider('bassPocket','Bass push / lay back',-30,30,' ms')}{slider('bassDynamics','Bass dynamics')}
  <p className="performance-hint">Approach notes lead into the next chord. Octaves shape soul, funk and disco; walking bass prioritizes stepwise movement.</p></details></>}

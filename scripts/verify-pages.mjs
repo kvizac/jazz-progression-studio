@@ -16,6 +16,8 @@ export async function verifyPages() {
   for (const folder of ['dist/site', 'site']) {
     for (const asset of assets) assert((await stat(join(folder, asset))).size > 0, `Missing ${folder}/${asset}`);
     assert((await stat(join(folder, 'piano/C3.mp3'))).size > 1000, 'Missing piano samples.');
+    for (const note of ['E1','G1','As1','Cs2','E2','G2','As2','Cs3','E3','G3']) assert((await stat(join(folder, 'bass-electric', note + '.mp3'))).size > 1000, 'Missing electric bass sample: ' + note);
+    assert((await readFile(join(folder, 'bass-electric/ATTRIBUTION.txt'), 'utf8')).includes('Creative Commons Attribution 3.0'), 'Missing bass attribution.');
   }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -26,7 +26,7 @@ describe('Expressive players',()=>{
   expect(JSON.stringify(p.cells)).toBe(before);
  });
  it('uses the chosen arpeggio and roll directions and responds to density',()=>{
-  const p=generate({...DEFAULT,groove:'held',roll:100,human:0,pocket:0,rollDirection:'down'}),ns=performance(p).filter(n=>n.track==='chords'&&n.cellId===p.cells[0].id);
+  const p=generate({...DEFAULT,groove:'held',leftHand:'off',roll:100,human:0,pocket:0,rollDirection:'down'}),ns=performance(p).filter(n=>n.track==='chords'&&n.cellId===p.cells[0].id);
   expect(ns.map(n=>n.midi)).toEqual([...p.cells[0].notes].sort((a,b)=>b-a));
   const a=performance({...p,settings:{...p.settings,groove:'broken',arpPattern:'up',arpRate:4,density:100}}).filter(n=>n.track==='chords'&&n.cellId===p.cells[0].id);
   expect(a.slice(0,p.cells[0].notes.length).map(n=>n.midi)).toEqual([...p.cells[0].notes].sort((a,b)=>a-b));

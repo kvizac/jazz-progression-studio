@@ -111,3 +111,35 @@ variation, swapping and suggestions. Server-rendered UI checks verify enabled
 Major/Minor controls on a restored rhythm-changes project, the all-locked message,
 associated field labels and help. Existing MIDI round-trip tests remain in place.
 These are automated source/render tests, not a claim of device-level Safari QA.
+
+### 6.3 — Two hands, warm electric piano and electric bass guitar
+
+A separate left-hand support phrase now follows each chord. Auto chooses light
+third/seventh shells above the bass register, or root support when bass is off.
+Two-note grips stay within an octave and move toward the previous grip. The right
+hand uses up to four upper voices within a ninth, moved into the upper register;
+locked voicings retain their exact notes. Left-hand style, activity, MIDI velocity
+level and articulation are adjustable. Each hand and the bass have independent
+preview mute buttons and distinct piano-roll colors. Turning the left hand off
+restores the original unpartitioned right-hand voicing.
+
+The default instrument is a warm tine-style FM electric piano through a low-pass
+filter and subtle stereo tremolo (22%, 4 Hz). Tremolo depth and speed are live
+preview controls. The default bass phrase is Soul. Older browser autosaves without
+left-hand settings adopt the new electric-piano default once; explicit project
+imports retain their saved instrument. No extra sound downloads are needed for
+electric piano. Bass guitar uses a ~970 KB, ten-note MP3 subset of Karoryfer samples
+edited by N. Brosowsky, with a soft envelope, low-pass filter and light compression.
+Full attribution and adaptation details are in public/bass-electric/ATTRIBUTION.txt.
+Bass samples load locally from this site and are included in both publishing paths.
+Loading failure gives a retry/turn-bass-off message and does not block composing.
+
+Performance MIDI keeps the existing two-track Keys/Bass layout: both piano hands
+are on Keys, and electric finger bass uses GM program 33 (zero-based). Timing,
+velocity and exact loop padding are preserved. Tremolo/filter/compression are audio
+preview effects, not baked into MIDI; add the corresponding effects in Ableton.
+Block export stays a clean on-grid chord sketch. Tests check hand separation,
+playable grips, chord-tone membership across keys, locked notes, independent bass,
+MIDI part counts, defaults and import validation. Sample packaging checks cover
+both Pages publication paths. No acoustic-piano or realistic sampled-electric-piano
+claim is made for the FM electric-piano preview.

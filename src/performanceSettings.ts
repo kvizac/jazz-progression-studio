@@ -1,10 +1,11 @@
 export type Expression = {
+ leftHand:'off'|'auto'|'shells'|'root-fifth'|'broken';leftDensity:number;leftLevel:number;leftGate:number;tremoloDepth:number;tremoloRate:number;
  density:number; syncopation:number; variation:number; gate:number; dynamics:number; pocket:number;
  arp:number; arpRate:1|2|4; arpPattern:'up'|'down'|'pendulum'|'outside'; arpOctaves:1|2;
  rollDirection:'up'|'down'|'alternate'; bassDensity:number; bassGate:number; bassVariation:number;
  bassApproach:number; bassOctaves:number; bassPocket:number; bassDynamics:number;
 };
-export const EXPRESSION:Expression={density:65,syncopation:65,variation:35,gate:65,dynamics:45,pocket:8,arp:0,arpRate:2,arpPattern:'up',arpOctaves:1,rollDirection:'up',bassDensity:65,bassGate:80,bassVariation:35,bassApproach:55,bassOctaves:25,bassPocket:0,bassDynamics:40};
+export const EXPRESSION:Expression={leftHand:'auto',leftDensity:35,leftLevel:65,leftGate:82,tremoloDepth:22,tremoloRate:4,density:65,syncopation:65,variation:35,gate:65,dynamics:45,pocket:8,arp:0,arpRate:2,arpPattern:'up',arpOctaves:1,rollDirection:'up',bassDensity:65,bassGate:80,bassVariation:35,bassApproach:55,bassOctaves:25,bassPocket:0,bassDynamics:40};
 export const GROOVES={held:'Ballad · sustained',pocket:'Neo-soul · pocket',swing:'Jazz · comping',bossa:'Bossa · syncopated',broken:'Flowing arpeggios',funk:'Funk · sixteenths',gospel:'Gospel · responses',disco:'Disco · offbeats',latin:'Latin · tumbao'};
 export const BASSES={off:'Off',roots:'Sustained roots',walking:'Jazz · walking',twofeel:'Jazz · two-feel',soul:'Soul · fingerstyle',funk:'Funk · syncopated',bossa:'Bossa · root / fifth',disco:'Disco · octaves',latin:'Latin · anticipated'};
 export type PerformancePreset={name:string;hint:string;settings:Partial<Expression>&{groove:keyof typeof GROOVES;bass:keyof typeof BASSES;swing:number;roll:number;human:number}};

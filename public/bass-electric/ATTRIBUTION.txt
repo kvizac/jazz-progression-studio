@@ -1,0 +1,13 @@
+Electric bass guitar samples
+Original source: Karoryfer Samples, https://www.karoryfer.com/karoryfer-samples
+Edited and distributed by N. Brosowsky in tonejs-instruments:
+https://github.com/nbrosowsky/tonejs-instruments
+Source credit: https://github.com/nbrosowsky/tonejs-instruments/blob/master/sample-source-info.txt
+License: Creative Commons Attribution 3.0 Unported
+https://creativecommons.org/licenses/by/3.0/
+
+This subset uses E1, G1, A#1, C#2, E2, G2, A#2, C#3, E3 and G3.
+Adaptations for Jazz Progression Studio: limited to 8 seconds with a final
+250 ms fade, converted to mono, and re-encoded as 44.1 kHz 96 kbps MP3.
+Preview processing applies a low-pass tone filter, light compression and a
+soft attack/release. No endorsement by the original creators is implied.

@@ -2,15 +2,37 @@ import * as Tone from 'tone';
 import type { Note, Project, Settings } from './studio';
 import { barCount } from './studio';
 let piano:Tone.Sampler|undefined, pianoPromise:Promise<void>|undefined;
-let electric:Tone.PolySynth|undefined,bass:Tone.MonoSynth|undefined,click:Tone.Synth|undefined,guitar:Tone.PolySynth|undefined;
+let electric:Tone.PolySynth|undefined,click:Tone.Synth|undefined,guitar:Tone.PolySynth|undefined;
 let lowKeys:Tone.PolySynth|undefined;
+let tremolo:Tone.Tremolo|undefined,electricFilter:Tone.Filter|undefined;
+let bassGuitar:Tone.Sampler|undefined,bassPromise:Promise<void>|undefined;
 let generation=0, audioInitialized=false;
 function ensureSynths(){
  if(!lowKeys)lowKeys=new Tone.PolySynth(Tone.Synth,{oscillator:{type:'sine'},envelope:{attack:.007,decay:.2,sustain:.3,release:.2},volume:-17}).toDestination();
- if(!electric)electric=new Tone.PolySynth(Tone.FMSynth,{harmonicity:3,modulationIndex:1.4,oscillator:{type:'sine'},envelope:{attack:.005,decay:.8,sustain:.12,release:.5},modulationEnvelope:{attack:.002,decay:.3,sustain:.05,release:.2},volume:-17}).toDestination();
+ if(!electric){
+  tremolo=new Tone.Tremolo({frequency:4,depth:.22,spread:70,type:'sine',wet:1}).toDestination().start();
+  electricFilter=new Tone.Filter({frequency:3400,type:'lowpass',rolloff:-12,Q:.3}).connect(tremolo);
+  electric=new Tone.PolySynth(Tone.FMSynth,{harmonicity:1,modulationIndex:1.15,oscillator:{type:'sine'},modulation:{type:'sine'},envelope:{attack:.008,decay:1.8,sustain:.14,release:.8},modulationEnvelope:{attack:.003,decay:.7,sustain:.03,release:.4},volume:-16}).connect(electricFilter);
+ }
+
  if(!guitar)guitar=new Tone.PolySynth(Tone.Synth,{oscillator:{type:'triangle'},envelope:{attack:.004,decay:.2,sustain:.05,release:.3},volume:-18}).toDestination();
- if(!bass)bass=new Tone.MonoSynth({oscillator:{type:'triangle'},filter:{type:'lowpass',frequency:800,Q:.2},envelope:{attack:.007,decay:.2,sustain:.3,release:.15},filterEnvelope:{attack:.001,decay:.2,sustain:.2,release:.1,baseFrequency:180,octaves:2},volume:-19}).toDestination();
  if(!click)click=new Tone.Synth({oscillator:{type:'sine'},envelope:{attack:.001,decay:.035,sustain:0,release:.005},volume:-18}).toDestination();
+}
+export function updateSoundControls(s:Settings){
+ if(!audioInitialized)return;
+ tremolo?.depth.rampTo(s.tremoloDepth/100,.08);tremolo?.frequency.rampTo(s.tremoloRate,.08);
+}
+export async function prepareBassPreview(s:Settings){if(audioInitialized&&s.bass!=='off')await loadBass();}
+function loadBass(){
+ if(!bassPromise)bassPromise=new Promise<void>((resolve,reject)=>{
+  const filter=new Tone.Filter({type:'lowpass',frequency:1900,rolloff:-12,Q:.2});
+  const compressor=new Tone.Compressor({threshold:-22,ratio:3,knee:12,attack:.025,release:.22}).toDestination();filter.connect(compressor);
+  let done=false;
+  const fail=()=>{if(done)return;done=true;clearTimeout(timeout);bassGuitar?.dispose();bassGuitar=undefined;filter.dispose();compressor.dispose();bassPromise=undefined;reject(Error('Electric bass samples could not load. Retry Play, or turn Bass style Off to continue with piano.'));};
+  const timeout=setTimeout(fail,20000);
+  bassGuitar=new Tone.Sampler({urls:{E1:'E1.mp3',G1:'G1.mp3','A#1':'As1.mp3','C#2':'Cs2.mp3',E2:'E2.mp3',G2:'G2.mp3','A#2':'As2.mp3','C#3':'Cs3.mp3',E3:'E3.mp3',G3:'G3.mp3'},baseUrl:`${import.meta.env.BASE_URL}bass-electric/`,attack:.008,release:.1,volume:-12,onload:()=>{if(done)return;done=true;clearTimeout(timeout);resolve();},onerror:fail}).connect(filter);
+ });
+ return bassPromise;
 }
 async function ready(sound:Settings['sound']){
  await Tone.start();audioInitialized=true;ensureSynths();
@@ -23,16 +45,16 @@ async function ready(sound:Settings['sound']){
 }
 function trigger(n:Note,sound:Settings['sound'],time:number,seconds:number){
  const pitch=Tone.Frequency(n.midi,'midi').toFrequency();
- if(n.track==='bass')bass!.triggerAttackRelease(pitch,seconds,time,n.velocity);
+ if(n.track==='bass'){if(bassGuitar?.loaded)bassGuitar.triggerAttackRelease(pitch,seconds,time,n.velocity);}
  else if(sound==='piano')piano!.triggerAttackRelease(pitch,seconds,time,n.velocity);
  else if(sound==='guitar')guitar!.triggerAttackRelease(pitch,seconds,time,n.velocity);
  else if(sound==='bass')lowKeys!.triggerAttackRelease(pitch,seconds,time,n.velocity);
  else electric!.triggerAttackRelease(pitch,seconds,time,n.velocity);
 }
-export function stopAudio(){generation++;if(!audioInitialized)return;const t=Tone.getTransport();t.stop();t.cancel();t.position=0;piano?.releaseAll();electric?.releaseAll();guitar?.releaseAll();lowKeys?.releaseAll();bass?.triggerRelease();}
-export async function audition(notes:number[],s:Settings){const token=generation;await ready(s.sound);if(token!==generation)return;const now=Tone.now()+.03;notes.forEach((midi,i)=>trigger({midi,beat:0,duration:1,velocity:.76,track:'chords',cellId:''},s.sound,now+i*.003,.85));}
+export function stopAudio(){generation++;if(!audioInitialized)return;const t=Tone.getTransport();t.stop();t.cancel();t.position=0;piano?.releaseAll();electric?.releaseAll();guitar?.releaseAll();lowKeys?.releaseAll();bassGuitar?.releaseAll();}
+export async function audition(notes:number[],s:Settings){const token=generation;await ready(s.sound);updateSoundControls(s);if(token!==generation)return;const now=Tone.now()+.03;notes.forEach((midi,i)=>trigger({midi,beat:0,duration:1,velocity:.76,track:'chords',cellId:''},s.sound,now+i*.003,.85));}
 export async function playProject(p:Project,notes:Note[],range:[number,number],onBeat:(b:number)=>void,onEnd:()=>void,liveNotes?:()=>Note[]){
- stopAudio();const token=generation;await ready(p.settings.sound);if(token!==generation)return false;
+ stopAudio();const token=generation;await ready(p.settings.sound);if(p.settings.bass!=='off')await loadBass();updateSoundControls(p.settings);if(token!==generation)return false;
  const s=p.settings,t=Tone.getTransport(),start=range[0]*4,end=Math.min(range[1]*4,barCount(s)*4),length=end-start,spb=60/s.bpm,count=s.countIn?4:0;
  t.bpm.value=s.bpm;t.swing=0;t.timeSignature=4;t.loop=s.loop;t.loopStart=count*spb;t.loopEnd=(count+length)*spb;
  if(count)for(let b=0;b<4;b++)t.schedule(time=>{click!.triggerAttackRelease(b===0?1600:1000,.025,time,.7);Tone.getDraw().schedule(()=>onBeat(-4+b),time);},b*spb);
